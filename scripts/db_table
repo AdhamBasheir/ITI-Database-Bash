@@ -85,7 +85,7 @@ delete() {
         return 1
     fi
 
-    if { [[ $3 == "db" ]] && ! is_empty "$1/$2"; } || [[ $3 == "table" && $(wc -l <"$item") -gt 1 ]]; then
+    if { [[ $3 == "db" ]] && ! is_empty "$1/$2"; } || [[ $3 == "table" && $(wc -l <"$1/$2") -gt 1 ]]; then
         echo "'$2' is not empty, are you sure you want to delete it?"
         clear_buffer
         read -r -n 1 -p "Press [y/Y] to confirm delete and any other key to cancel: " del

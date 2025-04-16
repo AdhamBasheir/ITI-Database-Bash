@@ -29,8 +29,8 @@ columns_menu() {
     read -r -p "Enter column number: " col_choice
 
     if ! is_int "$col_choice" || [[ $col_choice -lt 1 || $col_choice -gt $num_cols ]]; then
-        col_choice=''
-        col_name=''
+        unset col_choice
+        unset col_name
         echo "Invalid choice!"
         return 1
     fi
@@ -163,13 +163,16 @@ insert_record() {
     for attr in "${attributes[@]}"; do
         type="${field[$attr]}"
         constraints="${rules[$attr]}"
-        [[ "$constraints" =~ notnull ]] && msg="Enter $attr value [$type] (cannot be empty): " || msg="Enter $attr value [$type] (press enter for empty value): "
+        [[ "$constraints" =~ notnull ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
         validate_input "$attr" "$type" "$constraints" "$msg"
         new_row+="$reply:"
     done
 
-    last_id=$(awk -F':' -v pk_md=$pk_md 'NR==pk_md {print $NF}' "$meta_file")
-    new_row="$((++last_id)):${new_row}"
+    if [[ "${field["ID"]}" == "auto" ]]; then
+        last_id=$(awk -F':' -v pk_md=$pk_md 'NR==pk_md {print $NF}' "$meta_file")
+        new_row="$((++last_id)):${new_row}"
+    fi
+
     echo "$new_row" >>"$table_file"
 
     #  increment the last_id i  meta data file
@@ -204,7 +207,7 @@ delete_record() {
         return 1
     }
 
-    awk -F ':' -v idx="$key_index" -v val="$value" '
+    awk -F ':' -v idx="$col_choice" -v val="$value" '
     BEGIN { OFS = ":" }
     $idx != val { print }
     ' "$table_file" >temp_file && mv temp_file "$table_file"
@@ -213,7 +216,7 @@ delete_record() {
     sed -i "${rows_md}s/rows:[0-9]*/rows:$row_num/" "$meta_file"
     sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$meta_file"
 
-    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/user/$user"
+    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
     echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path").$(basename "$2")"
     echo -e "\nRecord(s) deleted successfully!"
 }
@@ -235,20 +238,12 @@ replace_record() {
     fi
 
     [[ $? -eq 1 ]] && return 1
-    key=$col_name
-
-    # Find column index
-    local key_index=$(awk -F ':' -v key="$key" 'NR==1 {for (i=1; i<=NF; i++) if ($i == key) print i}' "$table_file")
-    [[ -z "$key_index" ]] && {
-        echo -e "\nError: Column '$key' not found."
-        return 1
-    }
 
     clear_buffer
     read -r -p "Enter the value to update: " old_value && old_value=$(trim_tolower "$old_value")
     [[ -z "$old_value" || "$old_value" =~ ^(n/a|na)$ ]] && old_value="N/A"
 
-    local matching_rec=$(awk -F ':' -v idx="$key_index" -v val="$old_value" 'NR>1 && $idx == val' "$table_file")
+    local matching_rec=$(awk -F ':' -v idx="$col_choice" -v val="$old_value" 'NR>1 && $idx == val' "$table_file")
 
     local matching_count=$([[ -n "$matching_rec" ]] && echo "$matching_rec" | wc -l || echo 0)
     [[ "$matching_count" -eq 0 ]] && {
@@ -256,12 +251,12 @@ replace_record() {
         return 1
     }
 
-    local field_type=$(awk -F ":" -v key="$key" '$2 == key {print $3}' "$meta_file") && field_type=$(echo "$field_type" | tr -d '\n')
-    local field_constraints=$(awk -F ":" -v key="$key" '$2 == key {print $4}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
+    local field_type=$(awk -F ":" -v key="$col_name" '$1 == "key" && $2 == key {print $3}' "$meta_file") && field_type=$(echo "$field_type" | tr -d '\n')
+    local field_constraints=$(awk -F ":" -v key="$col_name" '$1 == "key" && $2 == key {print $4}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
 
-    [[ $constraints =~ notnull ]] && msg="Enter $attr value [$field_type] (cannot be empty): " || msg="Enter $attr value [$field_type] (press enter for empty value): "
+    [[ $constraints =~ notnull ]] && msg="Enter '$col_name' value [$field_type] (cannot be empty): " || msg="Enter '$col_name' value [$field_type] (press enter for empty value): "
 
-    validate_input "$key" "$field_type" "$field_constraints" "$msg"
+    validate_input "$col_name" "$field_type" "$field_constraints" "$msg"
     [[ $? -eq 0 ]] && new_value="$reply"
 
     clear_buffer
@@ -272,7 +267,7 @@ replace_record() {
     }
     new_value=$(echo "$new_value" | sed 's/\\/\\\\/g')
 
-    awk -F ':' -v idx="$key_index" -v old_val="$old_value" -v new_val="$new_value" '
+    awk -F ':' -v idx="$col_choice" -v old_val="$old_value" -v new_val="$new_value" '
        BEGIN { OFS = ":" }
        NR == 1 { print; next }
        {
@@ -304,20 +299,13 @@ find_record() {
     columns_menu "$meta_file"
     [[ $? -ne 0 ]] && return 1
 
-    key=$col_name
-    key_index=$(awk -F ':' -v key="$key" 'NR==1 {for (i=1; i<=NF; i++) if ($i == key) print i}' "$table_file")
-    [[ -z "$key_index" ]] && {
-        echo -e "\nError: Column '$key' not found."
-        return 1
-    }
-
     clear_buffer
     read -r -p "Enter the value: " value && value=$(trim_tolower "$value")
     [[ -z "$value" || "$value" =~ ^(n/a|na)$ ]] && value="N/A"
 
     # Make `matching_rec` and `matching_count` global
     escaped_value=$(echo "$value" | sed 's/[\/&]/\\&/g')
-    matching_rec=$(sed '1d' "$table_file" | sed -n "/^\([^:]*:\)\{$((key_index - 1))\}$escaped_value:/p")
+    matching_rec=$(sed '1d' "$table_file" | sed -n "/^\([^:]*:\)\{$((col_choice - 1))\}$escaped_value:/p")
     matching_count=$([[ -n "$matching_rec" ]] && echo "$matching_rec" | wc -l || echo 0)
 
     [[ "$matching_count" -eq 0 ]] && {
