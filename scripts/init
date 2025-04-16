@@ -263,7 +263,7 @@ table_init() {
 
     get_headers "$1/.$2" >"$1/$2"
     echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1").$2"
+    echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
 
     echo -e "\nTable Initialized succussfully"
     sleep 2

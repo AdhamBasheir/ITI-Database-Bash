@@ -184,7 +184,7 @@ insert_record() {
     sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$meta_file"
 
     echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path").$(basename "$2")"
+    echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
     echo -e "\nRow inserted successfully!"
 }
 
@@ -217,7 +217,7 @@ delete_record() {
     sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$meta_file"
 
     echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path").$(basename "$2")"
+    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
     echo -e "\nRecord(s) deleted successfully!"
 }
 
@@ -281,7 +281,7 @@ replace_record() {
     sed -i "/^updated_at:/s/.*/updated_at: $(date)/" "$meta_file"
 
     echo "user '$user' updated rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' updated rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path").$(basename "$2")"
+    echo "user '$user' updated rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
     echo -e "\nRecord(s) updated successfully!"
 }
 

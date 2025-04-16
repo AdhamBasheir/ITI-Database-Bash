@@ -38,6 +38,7 @@ create() {
 
     if [[ $3 == 'db' ]]; then
         mkdir "$dbs_path/$2"
+        mkdir "$logs_path/tables/$2"
         mkdir "$temp_path/$2"
         echo "db_name:$2" >>"$1/.$2"
         echo "user '$user' created Database '$2' at $(date)" >>"$logs_path/users/$user"
@@ -50,7 +51,7 @@ create() {
         db_owner=$(awk -F ':' '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
         echo "owner:$db_owner" >>"$1/.$2"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
-        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1").$2"
+        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
     fi
     echo "permissions:init" >>"$1/.$2"
     echo "created_by:$user" >>"$1/.$2"
@@ -102,12 +103,12 @@ delete() {
 
     [[ $3 == 'db' ]] && {
         rm -r "$temp_path/$2"
+        rm -r "$logs_path/tables/$2"
         rm "$logs_path/dbs/$2"
-        rm "$logs_path/tables/$2".*
         echo "user '$user' deleted Database '$2' at $(date)" >>"$logs_path/users/$user"
     }
     [[ $3 == 'table' ]] && {
-        rm "$logs_path/tables/$(basename "$1").$2"
+        rm "$logs_path/tables/$(basename "$1")/$2"
         echo "user '$user' deleted Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
     }
 
@@ -143,13 +144,27 @@ rename() {
     [[ -z $updated_at_md ]] && echo "updated_at:$(date)" >>"$path/.$new_name" || sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$path/.$new_name"
     [[ $2 == 'db' ]] && {
         mv "$logs_path/dbs/$1" "$logs_path/dbs/$new_name"
+        mv "$logs_path/tables/$1" "$logs_path/tables/$new_name"
+        mv "$temp_path/$1" "$temp_path/$new_name"
         echo "user '$user' renamed Database '$1' to '$new_name' at $(date)" >>"$logs_path/users/$user"
         echo "user '$user' renamed Database '$1' to '$new_name' at $(date)" >>"$logs_path/dbs/$new_name"
+
+        dbname_md=$(awk '/^db_name/ {print NR}' "$path/.$new_name")
+        sed -i "${dbname_md}s/.*/db_name:$new_name/" "$path/.$new_name"
+
+        if [[ -n "$(ls "$path/$new_name")" ]]; then
+            for metafile in $(ls -A "$path/$new_name"); do
+                if [[ "$metafile" == .* ]]; then
+                    dbname_md=$(awk '/^db_name/ {print NR}' "$path/$new_name/$metafile")
+                    sed -i "${dbname_md}s/.*/db_name:$new_name/" "$path/$new_name/$metafile"
+                fi
+            done
+        fi
     }
     [[ $2 == 'table' ]] && {
-        mv "$logs_path/tables/$(basename "$db_path").$1" "$logs_path/tables/$(basename "$db_path").$new_name"
+        mv "$logs_path/tables/$(basename "$db_path")/$1" "$logs_path/tables/$(basename "$db_path")/$new_name"
         echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path").$new_name"
+        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$new_name"
     }
 
     echo "'$1' is renamed successfully to '$new_name'"
