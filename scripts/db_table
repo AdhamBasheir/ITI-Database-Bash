@@ -103,6 +103,7 @@ delete() {
     [[ $3 == 'db' ]] && {
         rm -r "$temp_path/$2"
         rm "$logs_path/dbs/$2"
+        rm "$logs_path/tables/$2".*
         echo "user '$user' deleted Database '$2' at $(date)" >>"$logs_path/users/$user"
     }
     [[ $3 == 'table' ]] && {

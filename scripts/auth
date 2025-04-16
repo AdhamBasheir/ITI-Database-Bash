@@ -6,7 +6,8 @@
 
 logout_func() {
     echo "logout at $(date)" >>"$logs_path/users/$user"
-    mv "$logs_path/users/$user" "$logs_path/users/.$user"
+    status_md=$(awk '/^status/ {print NR}' "$auth_path/users/$user")
+    sed -i "${status_md}s/.*/status:offline/" "$auth_path/users/$user"
     echo "Goodbye $user!"
     user="Guest"
 }
@@ -52,13 +53,19 @@ login_func() {
     unset pass
     if [[ $1 == 'user' ]]; then
         user="$name"
-        if [[ -e "$logs_path/users/.$user" ]]; then
-            mv "$logs_path/users/.$user" "$logs_path/users/$user"
-            echo "login at $(date)" >>"$logs_path/users/$user"
-            [[ $user == 'root' ]] && root_menu || user_menu
-            return 0
+        status_md=$(awk '/^status/ {print NR}' "$auth_path/users/$user")
+        status_value=$(awk -F ':' -v status_md="$status_md" 'NR==status_md {print $2}' "$auth_path/users/$user")
+
+        if [[ $status_value == 'online' ]]; then
+            echo -e "\nuser is already logged in"
+            user="Guest"
+            return 1
         fi
-        echo -e "\nuser is already logged in" && return 1
+        # add more status like 'suspended', 'banned', 'deactivated', 'deleted', etc.
+        sed -i "${status_md}s/.*/status:online/" "$auth_path/users/$user"
+        echo "login at $(date)" >>"$logs_path/users/$user"
+        [[ $user == 'root' ]] && root_menu || user_menu
+        return 0
     elif [[ $1 == 'group' ]]; then
         members_md=$(awk '/^members/ {print NR}' "$auth_path/groups/$name")
         sed -i "${members_md}s/$/:$user/" "$auth_path/groups/$name"
@@ -124,9 +131,10 @@ register_func() {
     if [[ $1 == 'user' ]]; then
         echo "username:$name" >>"$auth_path/users/$name"
         echo "pass:$salt:$hashed_password" >>"$auth_path/users/$name"
+        echo "status:offline" >>"$auth_path/users/$name"
         echo "groups" >>"$auth_path/users/$name"
         echo "created_at:$(date)" >>"$auth_path/users/$name"
-        echo "user '$name' created at $(date)" >>"$logs_path/users/.$name"
+        echo "user '$name' created at $(date)" >>"$logs_path/users/$name"
     elif [[ $1 == 'group' ]]; then
         echo "groupname:$name" >>"$auth_path/groups/$name"
         echo "pass:$salt:$hashed_password" >>"$auth_path/groups/$name"
