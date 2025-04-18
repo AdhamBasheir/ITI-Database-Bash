@@ -29,8 +29,7 @@ columns_menu() {
     read -r -p "Enter column number: " col_choice
 
     if ! is_int "$col_choice" || [[ $col_choice -lt 1 || $col_choice -gt $num_cols ]]; then
-        unset col_choice
-        unset col_name
+        unset col_choice col_name
         echo "Invalid choice!"
         return 1
     fi
@@ -47,6 +46,7 @@ validate_input() {
     local msg="$4"
 
     # Find column index from the header of the table file
+    # need to escape $field
     col_index=$(awk -F ":" -v field="$field" '
         NR==1 {
             for (i=1; i<=NF; i++) {
@@ -66,12 +66,14 @@ validate_input() {
         echo
         clear_buffer
         read -r -p "$msg" value && value=$(trim_tolower "$value")
-        [[ "$value" == "N/A" ]] && value=""
+        [[ "$value" == "n/a" ]] && value=""
+        [[ "$value" == "/" ]] && return 1
 
         # Check PK constraint (must be unique and not null)
         [[ "$constraints" == *"pk"* ]] && {
             [[ -z "$value" ]] && echo "Error: '$field' (Primary Key) cannot be empty!" && continue
             if [[ "$constraints" == *"unique"* ]]; then
+                # need to escape $value
                 if awk -F ":" -v col="$col_index" -v val="$value" 'NR > 1 && $col == val {exit 1}' "$table_file"; then
                     echo "Error: '$field' (Primary Key) must be unique!"
                     continue
@@ -84,6 +86,7 @@ validate_input() {
 
         # Check UNIQUE constraint (if not a PK)
         if [[ "$constraints" == *"unique"* ]]; then
+            # need to escape $value
             if ! awk -F ":" -v col="$col_index" -v val="$value" '
                 NR > 1 {
                     if ($col == val) {
@@ -100,7 +103,7 @@ validate_input() {
             case "$type" in
             "str")
                 if ! is_str "$value"; then
-                    echo "Error: '$field' must start with letter and cannot contain ':' or '/'."
+                    echo "Error: '$field' must start with letter and cannot contain ':'."
                     continue
                 fi
                 ;;
@@ -135,6 +138,42 @@ validate_input() {
     done
 }
 
+# $3: 'insert', 'update'
+new_record() {
+    local meta_file="$1"
+    local table_file="$2"
+    local column_order=()
+    local -A field rules
+    new_row=""
+
+    clear_buffer
+    while IFS=: read -r key name type constraints; do
+        if [[ "$key" == "key" ]]; then
+            field["$name"]="$type"
+            rules["$name"]="$constraints"
+            column_order+=("$name")
+        fi
+    done < <(grep '^key:' "$meta_file")
+
+    [[ "${field["ID"]}" == "auto" ]] && attributes=("${column_order[@]:1}") || attributes=("${column_order[@]}")
+
+    for attr in "${attributes[@]}"; do
+        type="${field[$attr]}"
+        constraints="${rules[$attr]}"
+        [[ "$constraints" =~ notnull ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
+        validate_input "$attr" "$type" "$constraints" "$msg"
+        [[ $? -ne 0 ]] && return 1
+        new_row+="$reply:"
+    done
+
+    if [[ "${field["ID"]}" == "auto" ]]; then
+        [[ "$3" == 'insert' ]] && local req_id=$(awk -F ':' 'END { print $1 }' "$table_file") && ((req_id++))
+        [[ "$3" == 'update' ]] && local req_id=$pk_value
+        new_row="$req_id:$new_row"
+    fi
+    return 0
+}
+
 ########################################################################################
 
 insert_record() {
@@ -145,80 +184,59 @@ insert_record() {
     echo "Welcome to the record insertion wizard!"
     echo "*****************************************"
 
-    declare -A field rules
-    column_order=()
-    clear_buffer
-    while IFS=: read -r key name type constraints; do
-        if [[ "$key" == "key" ]]; then
-            field["$name"]="$type"
-            rules["$name"]="$constraints"
-            column_order+=("$name")
-        fi
-    done < <(grep '^key:' "$meta_file")
-
-    new_row=""
-
-    [[ "${field["ID"]}" == "auto" ]] && attributes=("${column_order[@]:1}") || attributes=("${column_order[@]}")
-
-    for attr in "${attributes[@]}"; do
-        type="${field[$attr]}"
-        constraints="${rules[$attr]}"
-        [[ "$constraints" =~ notnull ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
-        validate_input "$attr" "$type" "$constraints" "$msg"
-        new_row+="$reply:"
-    done
-
-    if [[ "${field["ID"]}" == "auto" ]]; then
-        last_id=$(awk -F':' -v pk_md=$pk_md 'NR==pk_md {print $NF}' "$meta_file")
-        new_row="$((++last_id)):${new_row}"
-    fi
-
+    echo "Enter '/' to cancel insertion:"
+    new_record "$meta_file" "$table_file" "insert"
+    [[ $? -ne 0 ]] && echo -e "\nInsertion cancled" && return 1
     echo "$new_row" >>"$table_file"
 
-    #  increment the last_id i  meta data file
-    if [[ "${field["ID"]}" == "auto" ]]; then
-        sed -i "${pk_md}s/^pk:ID:[0-9]*/pk:ID:$last_id/" "$meta_file"
-    fi
     row_num=$(awk -F ":" -v rows_md="$rows_md" 'NR==rows_md {print $NF}' "$1")
-    sed -i "${rows_md}s/rows:[0-9]*/rows:$((++row_num))/" "$meta_file"
-    sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$meta_file"
+    sed -i "${rows_md}s/^rows:[0-9]*/rows:$((++row_num))/" "$meta_file"
+    sed -i "${updated_at_md}s/^updated_at:.*/updated_at:$(date)/" "$meta_file"
 
     echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
     echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
     echo -e "\nRow inserted successfully!"
+    return 0
 }
 
-delete_record() {
+update_record() {
     local meta_file="$1"
     local table_file="$2"
 
     clear
-    echo "Welcome to the record deletion wizard!"
+    echo "Welcome to the record/s update wizard!"
     echo "*****************************************"
 
-    find_record "$table_file" "$meta_file"
-    [[ $? -ne 0 ]] && return 1
+    read -r -p "Enter the value of the record's primary key you want to update: " pk_value && pk_value=$(trim_tolower $pk_value)
 
-    echo "*****************************************"
-    clear_buffer
-    read -r -n 1 -p "Are you sure you want to delete $matching_count record(s)? (y/Y) " confirmation
-    [[ "$confirmation" != [Yy] ]] && {
-        echo -e "\nDeletion cancelled."
+    local pk_field=$(awk -F ":" '/^pk/ {print $3}' "$meta_file") && [[ $pk_field -eq 0 ]] && ((pk_field++))
+    # need to escape $pk_value and $pk_field
+    local updated_line=$(awk -F ":" -v field="$pk_field" -v value="$pk_value" 'NR > 1 && $field == value { print NR; exit 0 }' "$table_file")
+
+    [[ -z $updated_line ]] && {
+        echo -e "\nError: No matching record found."
         return 1
     }
 
-    awk -F ':' -v idx="$col_choice" -v val="$value" '
-    BEGIN { OFS = ":" }
-    $idx != val { print }
-    ' "$table_file" >temp_file && mv temp_file "$table_file"
+    echo "Enter '/' to cancel update:"
+    new_record "$meta_file" "$table_file" "update"
+    [[ $? -ne 0 ]] && echo -e "\nUpdating cancled" && return 1
 
-    row_num=$(($(awk -F ":" -v rows_md="$rows_md" 'NR==rows_md {print $NF}' "$1") - $matching_count))
-    sed -i "${rows_md}s/rows:[0-9]*/rows:$row_num/" "$meta_file"
-    sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$meta_file"
+    clear_buffer
+    read -r -n 1 -p "Are you sure you want to update this record? (y/Y) " confirmation
+    [[ "$confirmation" != [Yy] ]] && {
+        echo -e "\nUpdating canceled."
+        return 1
+    }
 
-    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' deleted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
-    echo -e "\nRecord(s) deleted successfully!"
+    # need to escape $new_row properly
+    new_row=$(echo "$new_row" | sed 's/\\/\\\\/g')
+    sed -i "${updated_line}s/.*/$new_row/" "$table_file"
+
+    echo "user '$user' updated a row in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' updated a row in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRecord(s) updated successfully!"
+    return 0
 }
 
 replace_record() {
@@ -240,8 +258,8 @@ replace_record() {
     [[ $? -eq 1 ]] && return 1
 
     clear_buffer
-    read -r -p "Enter the value to update: " old_value && old_value=$(trim_tolower "$old_value")
-    [[ -z "$old_value" || "$old_value" =~ ^(n/a|na)$ ]] && old_value="N/A"
+    read -r -p "Enter the value to replace: " old_value && old_value=$(trim_tolower "$old_value")
+    [[ -z "$old_value" ]] && old_value="N/A"
 
     local matching_rec=$(awk -F ':' -v idx="$col_choice" -v val="$old_value" 'NR>1 && $idx == val' "$table_file")
 
@@ -251,6 +269,7 @@ replace_record() {
         return 1
     }
 
+    # need to escape $col_name
     local field_type=$(awk -F ":" -v key="$col_name" '$1 == "key" && $2 == key {print $3}' "$meta_file") && field_type=$(echo "$field_type" | tr -d '\n')
     local field_constraints=$(awk -F ":" -v key="$col_name" '$1 == "key" && $2 == key {print $4}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
 
@@ -260,13 +279,15 @@ replace_record() {
     [[ $? -eq 0 ]] && new_value="$reply"
 
     clear_buffer
-    read -r -n 1 -p "Are you sure you want to update $matching_count record(s)? (y/Y) " confirmation
+    read -r -n 1 -p "Are you sure you want to replace values in $matching_count record(s)? (y/Y) " confirmation
     [[ "$confirmation" != [Yy] ]] && {
-        echo -e "\nUpdating cancelled."
+        echo -e "\nUpdating canceled."
         return 1
     }
+    # need to escape $new_value properly
     new_value=$(echo "$new_value" | sed 's/\\/\\\\/g')
 
+    # need to escape $col_name and $old_value
     awk -F ':' -v idx="$col_choice" -v old_val="$old_value" -v new_val="$new_value" '
        BEGIN { OFS = ":" }
        NR == 1 { print; next }
@@ -280,9 +301,45 @@ replace_record() {
 
     sed -i "/^updated_at:/s/.*/updated_at: $(date)/" "$meta_file"
 
-    echo "user '$user' updated rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
-    echo "user '$user' updated rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo "user '$user' replaced values in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' replaced values in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
     echo -e "\nRecord(s) updated successfully!"
+    return 0
+}
+
+delete_record() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    echo "Welcome to the record deletion wizard!"
+    echo "*****************************************"
+
+    find_record "$table_file" "$meta_file"
+    [[ $? -ne 0 ]] && return 1
+
+    echo "*****************************************"
+    clear_buffer
+    read -r -n 1 -p "Are you sure you want to delete $matching_count record(s)? (y/Y) " confirmation
+    [[ "$confirmation" != [Yy] ]] && {
+        echo -e "\nDeletion canceled."
+        return 1
+    }
+
+    # need to escape $value
+    awk -F ':' -v idx="$col_choice" -v val="$value" '
+    BEGIN { OFS = ":" }
+    $idx != val { print }
+    ' "$table_file" >temp_file && mv temp_file "$table_file"
+
+    row_num=$(($(awk -F ":" -v rows_md="$rows_md" 'NR==rows_md {print $NF}' "$1") - $matching_count))
+    sed -i "${rows_md}s/^rows:[0-9]*/rows:$row_num/" "$meta_file"
+    sed -i "${updated_at_md}s/^updated_at:.*/updated_at:$(date)/" "$meta_file"
+
+    echo "user '$user' deleted rows from Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' deleted rows from Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRecord(s) deleted successfully!"
+    return 0
 }
 
 # $1: Table Data File
@@ -301,9 +358,10 @@ find_record() {
 
     clear_buffer
     read -r -p "Enter the value: " value && value=$(trim_tolower "$value")
-    [[ -z "$value" || "$value" =~ ^(n/a|na)$ ]] && value="N/A"
+    [[ -z "$value" ]] && value="N/A"
 
     # Make `matching_rec` and `matching_count` global
+    # need to escape $value properly
     escaped_value=$(echo "$value" | sed 's/[\/&]/\\&/g')
     matching_rec=$(sed '1d' "$table_file" | sed -n "/^\([^:]*:\)\{$((col_choice - 1))\}$escaped_value:/p")
     matching_count=$([[ -n "$matching_rec" ]] && echo "$matching_rec" | wc -l || echo 0)
@@ -320,6 +378,7 @@ find_record() {
         sed -n '1p' "$table_file"
         echo "$matching_rec"
     } | column -t -s ':'
+    return 0
 }
 
 show_all_records() {

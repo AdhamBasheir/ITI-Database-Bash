@@ -27,8 +27,8 @@ create() {
         echo -e "\nName cannot be whitespace."
         return 1
     }
-    ! is_str "$2" && {
-        echo -e "\nInvalid name. The name must start with a letter and cannot contain ':' or '/'."
+    ! is_valid_name "$2" && {
+        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
         return 1
     }
     [[ -e "$1/$2" ]] && {
@@ -51,6 +51,7 @@ create() {
         db_owner=$(awk -F ':' '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
         echo "owner:$db_owner" >>"$1/.$2"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$1")"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
     fi
     echo "permissions:init" >>"$1/.$2"
@@ -71,8 +72,8 @@ delete() {
         echo -e "\nName cannot be whitespace."
         return 1
     }
-    ! is_str "$2" && {
-        echo -e "\nInvalid name. The name must start with a letter and cannot contain ':' or '/'."
+    ! is_valid_name "$2" && {
+        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
         return 1
     }
     [[ ! -e "$1/$2" ]] && {
@@ -110,6 +111,7 @@ delete() {
     [[ $3 == 'table' ]] && {
         rm "$logs_path/tables/$(basename "$1")/$2"
         echo "user '$user' deleted Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' deleted Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$db_path")"
     }
 
     echo "'$2' is deleted successfully."
@@ -127,8 +129,8 @@ rename() {
         echo -e "\nName cannot be whitespace."
         return 1
     }
-    ! is_str "$new_name" && {
-        echo -e "\nInvalid name. The name must start with a letter and cannot contain ':' or '/'."
+    ! is_valid_name "$new_name" && {
+        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
         return 1
     }
     { [[ $2 == 'db' ]] && path=$dbs_path; } || { [[ $2 == 'table' ]] && path=$db_path; }
@@ -140,7 +142,7 @@ rename() {
     mv "$path/.$1" "$path/.$new_name"
     updated_at_md=$(awk '/^updated_at:/ {print NR}' "$path/.$new_name")
     name_md=$(awk -v type="$2" '/^type_name:/ {print NR}' "$path/.$new_name")
-    sed -i "${name_md}s/$2_name:.*/$2_name:$new_name/" "$path/.$new_name"
+    sed -i "${name_md}s/${2}_name:.*/${2}_name:$new_name/" "$path/.$new_name"
     [[ -z $updated_at_md ]] && echo "updated_at:$(date)" >>"$path/.$new_name" || sed -i "${updated_at_md}s/updated_at:.*/updated_at:$(date)/" "$path/.$new_name"
     [[ $2 == 'db' ]] && {
         mv "$logs_path/dbs/$1" "$logs_path/dbs/$new_name"
@@ -164,6 +166,7 @@ rename() {
     [[ $2 == 'table' ]] && {
         mv "$logs_path/tables/$(basename "$db_path")/$1" "$logs_path/tables/$(basename "$db_path")/$new_name"
         echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/dbs/$(basename "$db_path")"
         echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$new_name"
     }
 

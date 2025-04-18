@@ -13,9 +13,9 @@ is_int() {
     [[ "$1" =~ ^-?[0-9]+$ ]]
 }
 
-# $1: value to check if start with letter
+# $1: value to check if start with letter and not contain ':'
 is_str() {
-    [[ "$1" =~ ^[a-z][^:/]*$ ]]
+    [[ "$1" =~ ^[a-z][^:]*$ ]]
 }
 
 # $1: value to check if email
@@ -26,4 +26,9 @@ is_email() {
 # $1: value to check if phone
 is_phone() {
     [[ "$1" =~ ^(01[0125])[0-9]{8}$ ]]
+}
+
+# $1: value to check for '/' or ':'
+is_valid_name() {
+    [[ ! "$1" =~ [:/] ]]
 }

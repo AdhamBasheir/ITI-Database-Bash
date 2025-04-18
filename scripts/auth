@@ -21,11 +21,12 @@ login_func() {
         echo -e "\nName cannot be whitespace."
         return 1
     }
-    ! is_str "$name" && {
-        echo -e "\nInvalid Name. The name must start with a letter and cannot contain ':' or '/'."
+    ! is_valid_name "$name" && {
+        echo -e "\nInvalid Name. The name cannot contain ':' or '/'."
         return 1
     }
     if [[ $1 == 'group' && -e "$auth_path/groups/$name" ]]; then
+        # need to escape user
         if awk -v user="$user" -F ':' '/^members/ {for (i = 2; i <= NF; i++) if ($i == user) exit 0; exit 1}' "$auth_path/groups/$name"; then
             echo -e "\nYou already are a member of the group '$name'."
             return 1
@@ -98,8 +99,8 @@ register_func() {
         echo -e "\nName cannot be '$name'."
         return 1
     }
-    ! is_str "$name" && {
-        echo -e "\nInvalid Name. The name must start with a letter and cannot contain ':' or '/'."
+    ! is_valid_name "$name" && {
+        echo -e "\nInvalid Name. The name cannot contain ':' or '/'."
         return 1
     }
     [[ -e "$auth_path/users/$name" ]] && $1 == 'user' && {

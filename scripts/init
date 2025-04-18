@@ -51,10 +51,11 @@ key_init() {
             continue
         }
         is_str "$colName" || {
-            echo "Invalid column name. The name must start with a letter and cannot contain ':' or '/'."
+            echo "Invalid column name. The name must start with a letter and cannot contain ':'."
             ((i--))
             continue
         }
+        # need to escape colName
         [[ -n $(awk -F ':' -v colname="$colName" '$2 == colname' "$1") ]] && {
             echo "Column name already exists"
             ((i--))
@@ -83,7 +84,8 @@ key_init() {
 # $2: user or group to check
 # $3: 'users', 'groups'
 add_name() {
-    awk -F':' -v tocheck="$2" -v type="$3" '
+    # need to escape $2
+    awk -F ':' -v tocheck="$2" -v type="$3" '
     {
          if ($2 == type) {
             for (i = 3; i <= NF; i++) {
@@ -114,8 +116,8 @@ include_exclude() {
             echo "${4%s} name cannot be whitespace"
             continue
         }
-        is_str "$name" || {
-            echo "Invalid ${4%s} name. The name must start with a letter and cannot contain ':' or '/'."
+        is_valid_name "$name" || {
+            echo "Invalid ${4%s} name. The name cannot contain ':' or '/'."
             continue
         }
         [[ -e "$auth_path/$4/$name" ]] || {
@@ -263,6 +265,7 @@ table_init() {
 
     get_headers "$1/.$2" >"$1/$2"
     echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$1")"
     echo "user '$user' initialized Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
 
     echo -e "\nTable Initialized succussfully"

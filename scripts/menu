@@ -86,8 +86,8 @@ db_menu_write() {
                 sleep 2
                 continue
             }
-            ! is_str "$db_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -104,8 +104,8 @@ db_menu_write() {
                 sleep 2
                 continue
             }
-            ! is_str "$db_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -168,8 +168,8 @@ db_menu_read() {
                 sleep 2
                 continue
             }
-            ! is_str "$db_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -233,8 +233,8 @@ table_menu_write() {
                 sleep 2
                 continue
             }
-            ! is_str "$table_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -251,8 +251,8 @@ table_menu_write() {
                 sleep 2
                 continue
             }
-            ! is_str "$table_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -309,8 +309,8 @@ table_menu_read() {
                 sleep 2
                 continue
             }
-            ! is_str "$table_name" && {
-                echo "Invalid name. The name must start with a letter and cannot contain ':' or '/'."
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name cannot contain ':' or '/'."
                 sleep 2
                 continue
             }
@@ -346,17 +346,19 @@ crud_menu_write() {
     rows_md=$(awk '/^rows/ {print NR}' "$1")
     pk_md=$(awk '/^pk/ {print NR}' "$1")
     updated_at_md=$(awk '/^updated_at/ {print NR}' "$1")
-    unset col_name
-
+    
     while true; do
+        unset col_choice col_name
+
         clear
         echo "Hello $user, Select what you want to do in '$(basename "$2")' table:"
         echo "1) Insert Record"
-        echo "2) Delete Record"
+        echo "2) Update Record"
         echo "3) Replace Record"
-        echo "4) Select Record"
-        echo "5) Show All Records"
-        echo "6) Exit"
+        echo "4) Delete Record"
+        echo "5) Select Record"
+        echo "6) Show All Records"
+        echo "7) Exit"
 
         clear_buffer
         read -r -s -n 1 choice
@@ -367,7 +369,7 @@ crud_menu_write() {
             sleep 2
             ;;
         2)
-            delete_record "$1" "$2"
+            update_record "$1" "$2"
             sleep 2
             ;;
         3)
@@ -375,16 +377,20 @@ crud_menu_write() {
             sleep 2
             ;;
         4)
+            delete_record "$1" "$2"
+            sleep 2
+            ;;
+        5)
             find_record "$2" "$1"
             clear_buffer
             read -r -s -n 1 -p "Press any key to continue..."
             ;;
-        5)
+        6)
             show_all_records "$2"
             clear_buffer
             read -r -s -n 1 -p "Press any key to continue..."
             ;;
-        6) return 0 ;;
+        7) return 0 ;;
         *)
             echo "Invalid choice, please try again."
             sleep 2
@@ -400,9 +406,10 @@ crud_menu_read() {
     rows_md=$(awk '/^rows/ {print NR}' "$1")
     pk_md=$(awk '/^pk/ {print NR}' "$1")
     updated_at_md=$(awk '/^updated_at/ {print NR}' "$1")
-    unset col_name
 
     while true; do
+        unset col_choice col_name
+
         clear
         echo "Hello $user, Select what you want to do in '$(basename "$2")' table:"
         echo "1) Select Record"

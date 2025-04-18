@@ -1,23 +1,23 @@
 #!/bin/bash
 ########################################################################################
 
-# Function to clear input buffer
+# Clear input buffer
 clear_buffer() {
     read -r -s -t 0.1 -N 999999
 }
 
-# Function to remove leading/trailing spaces, squeeze inner spaces, and convert the string to lowercase
+# Remove leading/trailing spaces, squeeze inner spaces, and convert the string to lowercase
 trim_tolower() {
     echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/[[:space:]]\+/ /g;s/.*/\L&/'
 }
 
-# Function to stringify the input string
+# Stringify the input string
 stringify() {
     cleaned=$(trim_tolower "$1")
     echo "${cleaned// /-}"
 }
 
-# Function to hash the password with a salt using SHA-256
+# Hash the password with a salt using SHA-256
 hash_password() {
     local password="$1" && local salt="$2"
     echo -n "$password$salt" | openssl dgst -sha256 | awk '{print $2}'
@@ -27,7 +27,8 @@ hash_password() {
 # $2: user or group to check
 # $3: 'users', 'groups'
 check_permissions() {
-    awk -F':' -v tocheck="$2" -v type="$3" '
+    # need to escape $2
+    awk -F ':' -v tocheck="$2" -v type="$3" '
     /^permissions:/ { count = 4; next }
     count > 0 {
         if ($2 == type) {
@@ -43,7 +44,6 @@ check_permissions() {
     ' "$1"
 }
 
-# Function to get user's group permissions
 # $?: 0: none, 1: read, 2: write, 3: read/write
 group_perm_func() {
     metadata=$1 && user_groups=$2
