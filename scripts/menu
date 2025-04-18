@@ -87,7 +87,7 @@ db_menu_write() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }
@@ -105,7 +105,7 @@ db_menu_write() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }
@@ -169,7 +169,7 @@ db_menu_read() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }
@@ -234,7 +234,7 @@ table_menu_write() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }
@@ -252,7 +252,7 @@ table_menu_write() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }
@@ -310,7 +310,7 @@ table_menu_read() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name cannot contain ':' or '/'."
+                echo "Invalid name. The name cannot start with '.' or contain '/' or ':'."
                 sleep 2
                 continue
             }

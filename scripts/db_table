@@ -28,7 +28,7 @@ create() {
         return 1
     }
     ! is_valid_name "$2" && {
-        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
+        echo -e "\nInvalid name. The name cannot start with '.' or contain '/' or ':'."
         return 1
     }
     [[ -e "$1/$2" ]] && {
@@ -73,7 +73,7 @@ delete() {
         return 1
     }
     ! is_valid_name "$2" && {
-        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
+        echo -e "\nInvalid name. The name cannot start with '.' or contain '/' or ':'."
         return 1
     }
     [[ ! -e "$1/$2" ]] && {
@@ -130,7 +130,7 @@ rename() {
         return 1
     }
     ! is_valid_name "$new_name" && {
-        echo -e "\nInvalid name. The name cannot contain ':' or '/'."
+        echo -e "\nInvalid name. The name cannot start with '.' or contain '/' or ':'."
         return 1
     }
     { [[ $2 == 'db' ]] && path=$dbs_path; } || { [[ $2 == 'table' ]] && path=$db_path; }

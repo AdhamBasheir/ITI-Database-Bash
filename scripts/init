@@ -117,7 +117,7 @@ include_exclude() {
             continue
         }
         is_valid_name "$name" || {
-            echo "Invalid ${4%s} name. The name cannot contain ':' or '/'."
+            echo "Invalid ${4%s} name. The name cannot start with '.' or contain '/' or ':'."
             continue
         }
         [[ -e "$auth_path/$4/$name" ]] || {
