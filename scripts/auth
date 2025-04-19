@@ -323,7 +323,10 @@ auth_menu() {
             register_func "user"
             sleep 2
             ;;
-        3) db_menu ;;
+        3)
+            db_menu
+            sleep 2
+            ;;
         4)
             echo "Goodbye!"
             sleep 2

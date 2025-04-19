@@ -130,7 +130,6 @@ db_menu_write() {
         6) return 0 ;;
         7)
             logout_func
-            sleep 2
             return 0
             ;;
         8)
