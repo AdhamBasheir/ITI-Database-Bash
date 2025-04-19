@@ -1,7 +1,7 @@
 #!/bin/bash
 ########################################################################################
 # valid DataTypes
-validDataTypes=("int" "str" "email" "phone")
+validDataTypes=("int" "str" "email" "phone" "date")
 
 # $1: DataType to check if valid
 is_type() {
@@ -26,6 +26,11 @@ is_email() {
 # $1: value to check if phone
 is_phone() {
     [[ "$1" =~ ^(01[0125])[0-9]{8}$ ]]
+}
+
+# $1: value to check if date
+is_date() {
+    date -d "$1" "+%Y-%m-%d" 2>/dev/null
 }
 
 # $1: value to check if does not start with '.' and does not contain ':' or '/'
