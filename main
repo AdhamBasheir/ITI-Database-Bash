@@ -23,6 +23,7 @@ dbs_path="$(dirname "$0")/.data/.DBs"
 
 # Initialize Credentials Directory
 auth_path="$(dirname "$0")/.data/.Credentials"
+auth_path="$(dirname "$0")/.data/.Credentials"
 [[ ! -e "$auth_path/users/root" ]] && {
     clear
     mkdir -p "$auth_path/users"
@@ -58,6 +59,7 @@ auth_path="$(dirname "$0")/.data/.Credentials"
 
 # Initialize Logs Directory
 logs_path="$(dirname "$0")/.data/.Logs"
+logs_path="$(dirname "$0")/.data/.Logs"
 [[ ! -e "$logs_path" ]] && {
     mkdir -p "$logs_path/users"
     mkdir -p "$logs_path/groups"
@@ -67,6 +69,7 @@ logs_path="$(dirname "$0")/.data/.Logs"
 }
 
 # Initialize temp metadata Directory
+temp_path="$(dirname "$0")/.data/.temp"
 temp_path="$(dirname "$0")/.data/.temp"
 [[ ! -e "$temp_path" ]] && mkdir "$temp_path"
 
