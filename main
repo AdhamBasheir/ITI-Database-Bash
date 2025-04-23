@@ -18,11 +18,11 @@ source "$(dirname "$0")"/scripts/utils
 delimiter=$'\x1f'
 
 # Initialize Parent Directory
-dbs_path="$(dirname "$0")/.DBs"
+dbs_path="$(dirname "$0")/.data/.DBs"
 [[ ! -e "$dbs_path" ]] && mkdir "$dbs_path"
 
 # Initialize Credentials Directory
-auth_path="$(dirname "$0")/.Credentials"
+auth_path="$(dirname "$0")/.data/.Credentials"
 [[ ! -e "$auth_path/users/root" ]] && {
     clear
     mkdir -p "$auth_path/users"
@@ -57,7 +57,7 @@ auth_path="$(dirname "$0")/.Credentials"
 }
 
 # Initialize Logs Directory
-logs_path="$(dirname "$0")/.Logs"
+logs_path="$(dirname "$0")/.data/.Logs"
 [[ ! -e "$logs_path" ]] && {
     mkdir -p "$logs_path/users"
     mkdir -p "$logs_path/groups"
@@ -67,7 +67,7 @@ logs_path="$(dirname "$0")/.Logs"
 }
 
 # Initialize temp metadata Directory
-temp_path="$(dirname "$0")/.temp"
+temp_path="$(dirname "$0")/.data/.temp"
 [[ ! -e "$temp_path" ]] && mkdir "$temp_path"
 
 auth_menu
