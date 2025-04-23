@@ -1,0 +1,592 @@
+#!/bin/bash
+########################################################################################
+
+# helper functions:
+###################
+
+logout_func() {
+    echo "user '$user' logout at $(date)" >>"$logs_path/users/$user"
+    sed -i "/^status/s/.*/status${delimiter}offline/" "$auth_path/users/$user"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$auth_path/users/$user"
+    echo "Goodbye $user!"
+    user="Guest"
+}
+
+# $1: 'user', 'group'
+login_func() {
+    clear
+    clear_buffer
+    read -r -p "Please enter your $1 name: " name && name=$(stringify "$name")
+    [[ -z "$name" ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    ! is_valid_name "$name" && {
+        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        return 1
+    }
+    if [[ $1 == 'group' && -e "$auth_path/groups/$name" ]]; then
+        user_escaped=$(escape_for_awk "$user")
+        if awk -v user="$user_escaped" -F "$delimiter" '/^members/ {for (i = 2; i <= NF; i++) if ($i == user) exit 0; exit 1}' "$auth_path/groups/$name"; then
+            echo -e "\nYou already are a member of the group '$name'."
+            return 1
+        fi
+    fi
+
+    clear_buffer
+    read -r -s -p "Please enter your $1 password: " pass
+
+    if [[ ! -e "$auth_path/${1}s/$name" || -z "$pass" ]]; then
+        echo -e "\nInvalid $1 name or password."
+        return 1
+    fi
+
+    local data=$(grep "^pass" "$auth_path/${1}s/$name")
+    local stored_salt=$(echo "$data" | cut -d "$delimiter" -f2)
+    local stored_hash=$(echo "$data" | cut -d "$delimiter" -f3)
+    local entered_hash=$(hash_password "$pass" "$stored_salt")
+
+    if [[ ! -e "$auth_path/${1}s/$name" || "$entered_hash" != "$stored_hash" ]]; then
+        echo -e "\nInvalid $1 name or password."
+        return 1
+    fi
+
+    unset pass
+    if [[ $1 == 'user' ]]; then
+        user="$name"
+        status_value=$(awk -F "$delimiter" '/^status/ {print $2}' "$auth_path/users/$user")
+
+        if [[ $status_value == 'online' ]]; then
+            echo -e "\nuser is already logged in"
+            user="Guest"
+            return 1
+        fi
+        # add more status like 'suspended', 'banned', 'deactivated', 'deleted', etc.
+        sed -i "/^status/s/.*/status${delimiter}online/" "$auth_path/users/$user"
+        sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$auth_path/users/$user"
+
+        echo "user '$user' login at $(date)" >>"$logs_path/users/$user"
+        [[ $user == 'root' ]] && root_menu || user_menu
+        return 0
+    elif [[ $1 == 'group' ]]; then
+        user_escaped=$(escape_for_sed "$user")
+        sed -i "/^members/s/$/${delimiter}$user_escaped/" "$auth_path/groups/$name"
+        sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$auth_path/groups/$name"
+        sed -i "/^groups/s/$/${delimiter}$name/" "$auth_path/users/$user"
+        sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$auth_path/users/$user"
+
+        echo "user '$user' join group '$name' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' join group '$name' at $(date)" >>"$logs_path/groups/$name"
+        echo -e "\nYou have successfully joined the group '$name'."
+        return 0
+    fi
+}
+
+# $1: 'user', 'group'
+register_func() {
+    clear
+    clear_buffer
+    read -r -p "Please enter your $1 name: " name && name=$(stringify "$name")
+
+    [[ -z "$name" ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    [[ "$name" == 'Guest' || "$name" == 'root' ]] && {
+        echo -e "\nName cannot be '$name'."
+        return 1
+    }
+    ! is_valid_name "$name" && {
+        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        return 1
+    }
+    [[ -e "$auth_path/users/$name" ]] && $1 == 'user' && {
+        echo -e "\nuser '$name' already exists."
+        return 1
+    }
+    [[ -e "$auth_path/groups/$name" ]] && $1 == 'group' && {
+        echo -e "\ngroup '$name' already exists."
+        return 1
+    }
+
+    clear_buffer
+    read -r -s -p "Please enter your password: " pass1
+    [[ -z "$pass1" ]] && {
+        echo -e "\nPassword cannot be whitespace."
+        return 1
+    }
+    echo
+    clear_buffer
+    read -r -s -p "Please enter your password again: " pass2
+    echo
+
+    [[ $pass1 != $pass2 ]] && echo -e "\nPasswords does not match. Registration Failed." && return 1
+
+    local salt=$(openssl rand -base64 16)
+    local hashed_password=$(hash_password "$pass1" "$salt")
+
+    echo -e "\nRegistration Complete."
+    if [[ $1 == 'user' ]]; then
+        echo "username${delimiter}$name" >>"$auth_path/users/$name"
+        echo "pass${delimiter}$salt${delimiter}$hashed_password" >>"$auth_path/users/$name"
+        echo "status${delimiter}offline" >>"$auth_path/users/$name"
+        echo "groups" >>"$auth_path/users/$name"
+        echo "created_at${delimiter}$(date)" >>"$auth_path/users/$name"
+        echo "updated_at${delimiter}$(date)" >>"$auth_path/users/$name"
+        echo "user '$name' created at $(date)" >>"$logs_path/users/$name"
+    elif [[ $1 == 'group' ]]; then
+        echo "groupname${delimiter}$name" >>"$auth_path/groups/$name"
+        echo "pass${delimiter}$salt${delimiter}$hashed_password" >>"$auth_path/groups/$name"
+        echo "owner${delimiter}$user" >>"$auth_path/groups/$name"
+        echo "members${delimiter}$user" >>"$auth_path/groups/$name"
+        echo "created_by${delimiter}$user" >>"$auth_path/groups/$name"
+        echo "created_at${delimiter}$(date)" >>"$auth_path/groups/$name"
+        echo "updated_at${delimiter}$(date)" >>"$auth_path/groups/$name"
+        echo "user '$user' created group '$name' at $(date)" >>"$logs_path/groups/$name"
+        echo "user '$user' created group '$name' at $(date)" >>"$logs_path/users/$user"
+
+        name=$(escape_for_sed "$name")
+        sed -i "/^groups/s/$/${delimiter}$name/" "$auth_path/users/$user"
+        sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$auth_path/users/$user"
+    fi
+
+    unset pass1 pass2
+    return 0
+}
+
+users_logs() {
+    [[ -z $(ls "$logs_path/users/") ]] && {
+        echo "No logs for users found."
+        sleep 2
+        return 1
+    }
+    if [[ "$user" != 'root' ]]; then
+        {
+            echo "Logs for User '$user':"
+            echo "----------------------------------------------------------------------------------------------"
+            cat "$logs_path/users/$user"
+            echo -e "##############################################################################################\n"
+        } | paged_output
+        return 0
+    fi
+
+    read -r -p "Please enter the user name (or leave it empty for all users): " user_log && user_log=$(stringify "$user_log")
+
+    if [[ -z $user_log ]]; then
+        for logs in $(ls "$logs_path/users/"); do
+            echo "Logs for User '$logs':"
+            echo "----------------------------------------------------------------------------------------------"
+            cat "$logs_path/users/$logs"
+            echo -e "##############################################################################################\n"
+        done | paged_output
+        return 0
+    elif [[ ! -e "$logs_path/users/$user_log" ]]; then
+        echo -e "\nUser '$user_log' does not exist."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    else
+        {
+            echo "Logs for User '$logs':"
+            echo "----------------------------------------------------------------------------------------------"
+            cat "$logs_path/users/$user_log"
+            echo -e "##############################################################################################\n"
+        } | paged_output
+        return 0
+    fi
+}
+
+groups_logs() {
+    [[ -z $(ls "$logs_path/groups/") ]] && {
+        echo "No logs for groups found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
+    read -r -p "Please enter the group name (or leave it empty for all groups): " group_log && group_log=$(stringify "$group_log")
+
+    [[ $user != 'root' ]] && mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
+
+    if [[ -z $group_log ]]; then
+        printed_any=0
+        {
+            for logs in $(ls "$logs_path/groups/"); do
+                [[ $user != 'root' ]] && [[ ! " ${user_groups[*]} " == *" $logs "* ]] && continue
+                echo "Logs for Group '$logs':"
+                echo "----------------------------------------------------------------------------------------------"
+                cat "$logs_path/groups/$logs"
+                echo -e "##############################################################################################\n"
+                printed_any=1
+            done
+            [[ $printed_any -eq 0 ]] && echo "You are not a member of any group."
+        } | paged_output
+        return 0
+    elif [[ ! -e "$logs_path/groups/$group_log" ]]; then
+        echo -e "\nGroup '$group_log' does not exist."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    else
+        if [[ $user != 'root' ]] && [[ ! " ${user_groups[*]} " == *" $logs "* ]]; then
+            echo -e "\nYou are not a member of the group '$group_log'."
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            return 1
+        fi
+        {
+            echo "Logs for Group '$logs':"
+            echo "----------------------------------------------------------------------------------------------"
+            cat "$logs_path/groups/$group_log"
+            echo -e "##############################################################################################\n"
+        } | paged_output
+        return 0
+    fi
+    return 0
+}
+
+dbs_logs() {
+    [[ -z $(ls "$logs_path/dbs/") ]] && {
+        echo "No logs for databases found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
+    read -r -p "Please enter the database name (or leave it empty for all databases): " db_log && db_log=$(stringify "$db_log")
+
+    if [[ -z $db_log ]]; then
+        {
+            printed_any=0
+            for logs in $(ls "$logs_path/dbs/"); do
+                [[ $user != 'root' ]] && {
+                    log_perm "$dbs_path" "$logs"
+                    [[ $? -ne 0 ]] && continue
+                }
+                echo "Logs for Database '$logs':"
+                echo "----------------------------------------------------------------------------------------------"
+                cat "$logs_path/dbs/$logs"
+                echo -e "##############################################################################################\n"
+                printed_any=1
+            done
+            [[ $printed_any -eq 0 ]] && echo "You don't have permission to view any database logs."
+        } | paged_output
+        return 0
+    else
+        [[ ! -e "$logs_path/dbs/$db_log" ]] && {
+            echo -e "\nDatabase '$db_log' does not exist."
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            return 1
+        }
+        [[ $user != 'root' ]] && {
+            log_perm "$dbs_path" "$db_log"
+            [[ $? -ne 0 ]] && {
+                echo -e "\nYou don't have permission to access the logs for Database '$db_log'."
+                clear_buffer
+                read -r -s -n 1 -p "Press any key to continue..."
+                return 1
+            }
+        }
+        {
+            echo "Logs for Database '$db_log':"
+            echo "----------------------------------------------------------------------------------------------"
+            cat "$logs_path/dbs/$db_log"
+            echo -e "##############################################################################################\n"
+        } | paged_output
+        return 0
+    fi
+
+    return 0
+}
+
+tables_logs() {
+    [[ "$(du -s "$logs_path/tables/" | cut -f1)" -eq 0 ]] && {
+        echo "No logs for tables found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
+    read -r -p "Please enter the database name (or leave it empty for all databases): " db_log && db_log=$(stringify "$db_log")
+    read -r -p "Please enter the table name (or leave it empty for all tables): " table_log && table_log=$(stringify "$table_log")
+    echo
+
+    if [[ -z $db_log ]]; then
+        {
+            printed_any=0
+            for dbs in $(ls "$logs_path/tables/"); do
+                for logs in $(ls "$logs_path/tables/$dbs"); do
+                    [[ -n "$table_log" ]] && [[ "$table_log" != "$logs" ]] && continue
+                    [[ $user != 'root' ]] && {
+                        log_perm "$dbs_path/$dbs" "$logs"
+                        [[ $? -ne 0 ]] && continue
+                    }
+                    echo "Logs for Table '$logs' in Database '$dbs':"
+                    echo "----------------------------------------------------------------------------------------------"
+                    cat "$logs_path/tables/$dbs/$logs"
+                    echo -e "##############################################################################################\n"
+                    printed_any=1
+                done
+            done
+            [[ $printed_any -eq 0 ]] && echo "You don't have permission to view any table logs in database '$db_log'."
+        } | paged_output
+        return 0
+    else
+        [[ ! -e "$logs_path/tables/$db_log" ]] && {
+            echo -e "\nDatabase '$db_log' does not exist."
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            return 1
+        }
+        [[ -z $(ls "$logs_path/tables/$db_log") ]] && {
+            echo -e "\nNo logs found in Database '$db_log'."
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            return 1
+        }
+        if [[ -n "$table_log" ]]; then
+            [[ ! -e "$logs_path/tables/$db_log/$table_log" ]] && {
+                echo -e "\nTable '$table_log' does not exist in Database '$db_log'."
+                clear_buffer
+                read -r -s -n 1 -p "Press any key to continue..."
+                return 1
+            }
+            if [[ $user != 'root' ]]; then
+                log_perm "$dbs_path/$db_log" "$table_log"
+                [[ $? -ne 0 ]] && {
+                    echo -e "\nYou don't have permission to access the logs for Table '$table_log' in Database '$db_log'."
+                    clear_buffer
+                    read -r -s -n 1 -p "Press any key to continue..."
+                    return 1
+                }
+            fi
+            {
+                echo "Logs for Table '$table_log' in Database '$db_log':"
+                echo "----------------------------------------------------------------------------------------------"
+                cat "$logs_path/tables/$db_log/$table_log"
+                echo -e "##############################################################################################\n"
+            } | paged_output
+            return 0
+        fi
+        {
+            printed_any=0
+            for logs in $(ls "$logs_path/tables/$db_log"); do
+                if [[ $user != 'root' ]] && log_perm "$dbs_path/$db_log" "$logs"; then
+                    echo "Logs for Table '$logs' in Database '$db_log':"
+                    echo "----------------------------------------------------------------------------------------------"
+                    cat "$logs_path/tables/$db_log/$logs"
+                    echo -e "##############################################################################################\n"
+                    printed_any=1
+                fi
+            done
+            [[ $printed_any -eq 0 ]] && echo "You don't have permission to view any table logs in database '$db_log'."
+        } | paged_output
+        return 0
+    fi
+}
+
+########################################################################################
+
+log_menu() {
+    while true; do
+        clear
+        echo "Welcome "$user" to Logs Menu"
+        echo "1) Users Logs"
+        echo "2) Groups Logs"
+        echo "3) Databases Logs"
+        echo "4) Tables Logs"
+        echo "5) Return to User Menu"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            users_logs
+            ;;
+        2)
+            groups_logs
+            ;;
+        3)
+            dbs_logs
+            ;;
+        4)
+            tables_logs
+            ;;
+        5) return 0 ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+mygroups() {
+    clear
+    echo -e "A menu where you can edit and remove your groups\n"
+    awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user"
+    clear_buffer
+    read -r -s -n 1 -p "Press any key to continue..."
+    return 0
+}
+
+group_menu() {
+    while true; do
+        clear
+        echo "Welcome $user"
+        echo "1) Create Group"
+        echo "2) Manage Group"
+        echo "3) Join Group"
+        echo "4) Return to User Menu"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            register_func "group"
+            sleep 2
+            ;;
+        2)
+            mygroups
+            ;;
+        3)
+            login_func "group"
+            sleep 2
+            ;;
+        4) return 0 ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+user_menu() {
+    while [[ "$user" != 'Guest' ]]; do
+        clear
+        echo "Welcome $user"
+        echo "1) DBMS"
+        echo "2) Groups"
+        echo "3) Logs"
+        echo "4) Logout"
+        echo "5) Exit"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            db_menu
+            ;;
+        2)
+            group_menu
+            ;;
+        3)
+            log_menu
+            ;;
+        4)
+            logout_func
+            return 0
+            ;;
+        5)
+            logout_func
+            sleep 2
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+root_menu() {
+    while [[ "$user" != 'Guest' ]]; do
+        clear
+        echo "Welcome root"
+        echo "1) DBMS"
+        echo "2) Groups"
+        echo "3) Logs"
+        echo "4) Logout"
+        echo "5) Exit"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            db_menu
+            ;;
+        2)
+            for group in "$auth_path"/.*; do
+                [ -f "$group" ] && echo "$group"
+            done
+            echo
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            ;;
+        3)
+            log_menu
+            ;;
+        4)
+            logout_func
+            return 0
+            ;;
+        5)
+            logout_func
+            sleep 2
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+auth_menu() {
+    user='Guest'
+    while true; do
+        clear
+        echo "Welcome:"
+        echo "1) Login"
+        echo "2) Register"
+        echo "3) Enter as a Guest"
+        echo "4) Exit"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            login_func "user"
+            sleep 2
+            ;;
+        2)
+            register_func "user"
+            sleep 2
+            ;;
+        3)
+            db_menu
+            sleep 2
+            ;;
+        4)
+            echo "Goodbye!"
+            sleep 2
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}

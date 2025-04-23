@@ -1,0 +1,403 @@
+#!/bin/bash
+########################################################################################
+
+# helper functions:
+###################
+
+# $1: Metadata file
+get_headers() {
+    awk -F "$delimiter" '/^key/ {print $2}' "$1" | paste -s -d "$delimiter" -
+}
+
+# $1: Metadata File
+# $2: flags: 'noID'
+columns_menu() {
+    local meta_file="$1"
+    num_cols=$(echo "$headers" | tr "$delimiter" '\n' | wc -l)
+
+    echo "Select a column:"
+    if [[ $2 != 'noID' ]]; then
+        echo "$headers" | tr "$delimiter" '\n' | nl -w 1 -s ") "
+    else
+        echo "$headers" | cut -d "$delimiter" -f2- | tr "$delimiter" '\n' | nl -w 1 -s ") "
+        ((num_cols--))
+    fi
+
+    echo
+    clear_buffer
+    read -r -p "Enter column number: " col_choice
+
+    if ! is_int "$col_choice" || [[ $col_choice -lt 1 || $col_choice -gt $num_cols ]]; then
+        unset col_choice col_name
+        echo "Invalid choice!"
+        return 1
+    fi
+
+    [[ $2 == 'noID' ]] && ((col_choice++))
+    col_name=$(echo "$headers" | cut -d "$delimiter" -f$((col_choice)))
+    return 0
+}
+
+matching_records() {
+    local table_file="$1"
+    local value_escaped="$2"
+
+    # Make `matching_rec` and `matching_count` global
+    matching_rec=$(awk -F "$delimiter" -v col="$col_choice" -v val="$value_escaped" 'NR > 1 && $col == val' "$table_file")
+    matching_count=$([[ -n "$matching_rec" ]] && echo "$matching_rec" | wc -l || echo 0)
+
+    [[ "$matching_count" -eq 0 ]] && {
+        echo -e "\nError: No matching records found."
+        return 1
+    }
+
+    clear
+    echo "Matching record(s):"
+    echo "*****************************************"
+    {
+        sed -n '1p' "$table_file"
+        echo "$matching_rec"
+    } | column -t -s "$delimiter"
+
+    return 0
+}
+
+validate_input() {
+    local field="$1"
+    local type="$2"
+    local constraints="$3"
+    local msg="$4"
+
+    # Find column index from the header of the table file
+    field_escaped=$(escape_for_awk "$field")
+    col_index=$(awk -F "$delimiter" -v field="$field_escaped" '
+        NR==1 {
+            for (i=1; i<=NF; i++) {
+                if ($i == field) {
+                    print i;
+                    exit;
+                }
+            }
+        }' "$table_file")
+
+    if [[ -z "$col_index" ]]; then
+        echo "❌ Error: Column '$field' not found in the table."
+        return 1
+    fi
+
+    while :; do
+        echo
+        clear_buffer
+        read -r -p "$msg" value && value=$(trim_tolower "$value")
+        [[ "$value" == "n/a" ]] && value=""
+        [[ "$value" == "/" ]] && return 1
+        
+        if ! no_delimiter "$value"; then
+            echo "Error: '$field' must not contain the control character '0x1f'."
+            continue
+        fi
+
+        # Check PK constraint (must be unique and not null)
+        [[ "$constraints" == *"pk"* ]] && {
+            [[ -z "$value" ]] && echo "Error: '$field' (Primary Key) cannot be empty!" && continue
+            if [[ "$constraints" == *"unique"* ]]; then
+                value_escaped=$(escape_for_awk "$value")
+                if awk -F "$delimiter" -v col="$col_index" -v val="$value_escaped" 'NR > 1 && $col == val {exit 1}' "$table_file"; then
+                    echo "Error: '$field' (Primary Key) must be unique!"
+                    continue
+                fi
+            fi
+        }
+
+        # Check NOT NULL constraint
+        [[ "$constraints" == *"notnull"* && -z "$value" ]] && echo "Error: '$field' cannot be empty." && continue
+
+        # Check UNIQUE constraint (if not a PK)
+        if [[ "$constraints" == *"unique"* ]]; then
+            value_escaped=$(escape_for_awk "$value")
+            if ! awk -F "$delimiter" -v col="$col_index" -v val="$value_escaped" '
+                NR > 1 {
+                    if ($col == val) {
+                        exit 1;
+                    }
+                }' "$table_file"; then
+                echo "Error: This '$field' already exists. Please enter a different value."
+                continue
+
+            fi
+        fi
+
+        if [[ -n "$value" ]]; then
+            case "$type" in
+            "str") ;;
+            "int")
+                if ! is_int "$value"; then
+                    echo "Error: '$field' must be an integer."
+                    continue
+                fi
+                ;;
+            "email")
+                if ! is_email "$value"; then
+                    echo "Error: Invalid email format you must enter in this format: 'john@example.com'"
+                    continue
+                fi
+                ;;
+            "phone")
+                if ! is_phone "$value"; then
+                    echo "Error: Invalid phone format. Must be egyption number 'ex: 010-xxx-xxx-xx' digits."
+                    continue
+                fi
+                ;;
+            "date")
+                # Validate and Normalize date format
+                value=$(is_date "$value")
+                [[ -z $value ]] && {
+                    echo "Error: Invalid date format. Must be a valid date in 'YYYY-MM-DD' format."
+                    continue
+                }
+                ;;
+            *)
+                echo "Error: Unknown type '$type' for '$field'."
+                continue
+                ;;
+            esac
+        fi
+
+        # Assign reply value
+        [[ -n "$value" ]] && reply="$value" || reply="N/A"
+        return 0
+    done
+}
+
+# $3: flags: 'insert', 'update'
+new_record() {
+    local meta_file="$1"
+    local table_file="$2"
+    local column_order=()
+    local -A field rules
+    new_row=""
+
+    clear_buffer
+    while IFS="$delimiter" read -r key name type constraints; do
+        if [[ "$key" == "key" ]]; then
+            field["$name"]="$type"
+            rules["$name"]="$constraints"
+            column_order+=("$name")
+        fi
+    done < <(grep '^key' "$meta_file")
+
+    [[ "${field["ID"]}" == "auto" ]] && attributes=("${column_order[@]:1}") || attributes=("${column_order[@]}")
+
+    for attr in "${attributes[@]}"; do
+        type="${field[$attr]}"
+        constraints="${rules[$attr]}"
+        [[ "$constraints" =~ notnull ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
+        validate_input "$attr" "$type" "$constraints" "$msg"
+        [[ $? -ne 0 ]] && return 1
+        new_row+="$reply${delimiter}"
+    done
+
+    if [[ "${field["ID"]}" == "auto" ]]; then
+        [[ "$3" == 'insert' ]] && local req_id=$(awk -F "$delimiter" 'END { print $1 }' "$table_file") && ((req_id++))
+        [[ "$3" == 'update' ]] && local req_id=$pk_value
+        new_row="$req_id${delimiter}$new_row"
+    fi
+    return 0
+}
+
+########################################################################################
+
+insert_record() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    echo "Welcome to the record insertion wizard!"
+    echo "*****************************************"
+
+    echo "Enter '/' to cancel insertion:"
+    new_record "$meta_file" "$table_file" "insert"
+    [[ $? -ne 0 ]] && echo -e "\nInsertion cancled" && return 1
+    echo "$new_row" >>"$table_file"
+
+    sed -i "/^rows/s/.*/rows${delimiter}$((++row_num))/" "$meta_file"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$meta_file"
+
+    echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' inserted rows into Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRow inserted successfully!"
+    return 0
+}
+
+update_record() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    echo "Welcome to the record/s update wizard!"
+    echo "*****************************************"
+
+    read -r -p "Enter the value of the record's primary key you want to update: " pk_value && pk_value=$(trim_tolower $pk_value)
+
+    local pk_field=$(awk -F "$delimiter" '/^pk/ {print $3}' "$meta_file") && [[ $pk_field -eq 0 ]] && ((pk_field++))
+    pk_value_escaped=$(escape_for_awk "$pk_value")
+    pk_field_escaped=$(escape_for_awk "$pk_field")
+    local updated_line=$(awk -F "$delimiter" -v field="$pk_field_escaped" -v value="$pk_value_escaped" 'NR > 1 && $field == value { print NR; exit 0 }' "$table_file")
+
+    [[ -z $updated_line ]] && {
+        echo -e "\nError: No matching record found."
+        return 1
+    }
+
+    echo "Enter '/' to cancel update:"
+    new_record "$meta_file" "$table_file" "update"
+    [[ $? -ne 0 ]] && echo -e "\nUpdating cancled" && return 1
+
+    clear_buffer
+    read -r -p "Are you sure you want to update this record? Press [y/Y] to confirm update and anything else to cancel:  " confirmation
+    [[ "$confirmation" != [Yy] ]] && {
+        echo -e "\nUpdating canceled."
+        return 1
+    }
+
+    new_row=$(escape_for_sed "$new_row")
+    sed -i "${updated_line}s/.*/$new_row/" "$table_file"
+
+    echo "user '$user' updated a row in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' updated a row in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRecord(s) updated successfully!"
+    return 0
+}
+
+replace_record() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    echo "Welcome to the record/s replace wizard!"
+    echo "*****************************************"
+
+    find_record "$table_file" "$meta_file" 'replace'
+    [[ $? -ne 0 ]] && return 1
+
+    local field_constraints=$(awk -F "$delimiter" -v key="$col_name" '$1 == "key" && $2 == key {print $4}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
+
+    [[ $constraints =~ notnull ]] && msg="Enter '$col_name' value [$field_type] (cannot be empty): " || msg="Enter '$col_name' value [$field_type] (press enter for empty value): "
+
+    validate_input "$col_name" "$field_type" "$field_constraints" "$msg"
+    [[ $? -eq 0 ]] && new_value="$reply"
+
+    clear_buffer
+    read -r -p "Are you sure you want to replace values in $matching_count record(s)? Press [y/Y] to confirm replace and anything else to cancel:  " confirmation
+    [[ "$confirmation" != [Yy] ]] && {
+        echo -e "\nUpdating canceled."
+        return 1
+    }
+
+    new_value=$(escape_for_awk "$new_value")
+    awk -F "$delimiter" -v idx="$col_choice" -v old_val="$value_find" -v new_val="$new_value" -v delimiter="$delimiter" '
+       BEGIN { OFS = delimiter }
+       NR == 1 { print; next }
+       {
+         if ($idx == old_val) {
+             $idx = new_val
+         }
+         print
+       }
+    ' "$table_file" >temp_file && mv temp_file "$table_file"
+
+    sed -i "/^updated_at/s/.*/updated_at: $(date)/" "$meta_file"
+
+    echo "user '$user' replaced values in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' replaced values in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRecord(s) updated successfully!"
+    return 0
+}
+
+delete_record() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    echo "Welcome to the record deletion wizard!"
+    echo "*****************************************"
+
+    find_record "$table_file" "$meta_file" 'delete'
+    [[ $? -ne 0 ]] && return 1
+
+    echo "*****************************************"
+    clear_buffer
+    read -r -p "Are you sure you want to delete $matching_count record(s)? Press [y/Y] to confirm delete and anything else to cancel: " confirmation
+    [[ "$confirmation" != [Yy] ]] && {
+        echo -e "\nDeletion canceled."
+        return 1
+    }
+
+    awk -F "$delimiter" -v idx="$col_choice" -v val="$value_find" -v delimiter="$delimiter" '
+    BEGIN { OFS = delimiter }
+    $idx != val { print }
+    ' "$table_file" >temp_file && mv temp_file "$table_file"
+
+    row_num=$(($(awk -F "$delimiter" '/^rows/ {print $NF}' "$1") - $matching_count))
+    sed -i "/^rows/s/.*/rows${delimiter}$row_num/" "$meta_file"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$meta_file"
+
+    echo "user '$user' deleted rows from Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' deleted rows from Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nRecord(s) deleted successfully!"
+    return 0
+}
+
+# $1: Table Data File
+# $2: Meta Data File
+# $3: flags: 'find', 'delete', 'replace'
+find_record() {
+    local table_file="$1"
+    local meta_file="$2"
+
+    [[ "$3" == 'find' ]] && {
+        clear
+        echo "Welcome to the Find wizard!"
+        echo "*****************************************"
+    }
+
+    clear_buffer
+    headers=$(get_headers "$meta_file")
+    if [[ $3 == 'replace' && "$headers" =~ ^ID ]]; then
+        columns_menu "$meta_file" 'noID'
+    else
+        columns_menu "$meta_file"
+    fi
+    [[ $? -ne 0 ]] && return 1
+
+    clear_buffer
+    read -r -p "Enter the value to $3: " value_find && value_find=$(trim_tolower "$value_find")
+    [[ -z "$value_find" ]] && value_find="N/A"
+
+    # handling date format
+    col_name_escaped=$(escape_for_awk "$col_name")
+    field_type=$(awk -F "$delimiter" -v key="$col_name_escaped" '$1 == "key" && $2 == key {print $3}' "$meta_file") && field_type=$(echo "$field_type" | tr -d '\n')
+    [[ "$field_type" == "date" ]] && [[ $value_find != 'N/A' ]] && value_find=$(is_date "$value_find") && [[ -z $value_find ]] && {
+        echo "Error: Invalid date format. Must be a valid date in 'YYYY-MM-DD' format."
+        return 1
+    }
+
+    value_find=$(escape_for_awk "$value_find")
+    matching_rec=$(awk -F "$delimiter" -v col="$col_choice" -v val="$value_find" 'NR > 1 && $col == val' "$table_file")
+    matching_count=$([[ -n "$matching_rec" ]] && echo "$matching_rec" | wc -l || echo 0)
+
+    matching_records "$table_file" "$value_find"
+    [[ $? -ne 0 ]] && return 1 || return 0
+}
+
+show_all_records() {
+    local table_file="$1"
+    clear
+    [[ $(wc -l <"$table_file") -gt 1 ]] && {
+        column -t -s "$delimiter" "$table_file" | paged_output
+        return 0
+    } || {
+        echo "No records found."
+        return 1
+    }
+}

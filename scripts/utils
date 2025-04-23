@@ -1,0 +1,117 @@
+#!/bin/bash
+########################################################################################
+
+# Clear input buffer
+clear_buffer() {
+    read -r -s -t 0.1 -N 999999
+}
+
+# Remove leading/trailing spaces, squeeze inner spaces, and convert the string to lowercase
+trim_tolower() {
+    echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/[[:space:]]\+/ /g;s/.*/\L&/'
+}
+
+# Stringify the input string
+stringify() {
+    cleaned=$(trim_tolower "$1")
+    echo "${cleaned// /-}"
+}
+
+# Escape special characters for awk
+escape_for_awk() {
+    echo "$1" | sed 's/[.^$*+?()[\]{}|\\]/\\&/g' | sed 's/\\/\\\\/g'
+}
+
+# Escape special characters for sed
+escape_for_sed() {
+    echo "$1" | sed 's/[&/\.^$*+?()[\]{}|\\]/\\&/g' | sed 's/\\/\\\\/g' | sed 's/\$/\\$/g' | sed 's/\^/\\^/g' | sed 's/\./\\./g'
+}
+
+# Pause on success, Wait on failure
+pause_wait() {
+    if [[ $1 -eq 0 ]]; then
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+    else
+        sleep 2
+    fi
+}
+
+# Hash the password with a salt using SHA-256
+hash_password() {
+    local password="$1" && local salt="$2"
+    echo -n "$password$salt" | openssl dgst -sha256 | awk '{print $2}'
+}
+
+# $1: Metadata File
+# $2: user or group to check
+# $3: 'users', 'groups'
+check_permissions() {
+    to_check=$(escape_for_awk "$2")
+    awk -F "$delimiter" -v tocheck="$to_check" -v type="$3" '
+    /^permissions/ { count = 4; next }
+    count > 0 {
+        if ($2 == type) {
+            for (i = 3; i <= NF; i++) {
+                if ($i == tocheck) {
+                    print $1
+                    exit 0
+                }
+            }
+        }
+        count--
+    }
+    ' "$1"
+}
+
+# $?: 0: none, 1: read, 2: write, 3: read/write
+group_perm_func() {
+    metadata=$1 && user_groups=$2
+    read_perm=0 && write_perm=0
+    for user_group in "${user_groups[@]}"; do
+        check_perm=$(check_permissions "$metadata" "$user_group" 'groups')
+        [[ $check_perm == 'read' ]] && read_perm=1
+        [[ $check_perm == 'write' ]] && write_perm=1
+    done
+    return $((read_perm + write_perm * 2))
+}
+
+# $1: Parent Directory
+# $2: Database or Table Name
+log_perm() {
+    user_perm=$(check_permissions "$1/.$2" "$user" 'users')
+    permissions_value=$(awk -F "$delimiter" '/^permissions/ {print $2}' "$1/.$2")
+    mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
+    group_perm_func "$1/.$2" "$user_groups"
+    group_perm=$?
+
+    if [[ "$permissions_value" == 'private' ]]; then
+        [[ "$user_perm" != 'write' && $group_perm -lt 2 ]] && return 1
+
+    elif [[ "$permissions_value" == 'public' ]]; then
+        [[ $group_perm -eq 3 ]] && $group_perm=1
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && return 1
+
+    fi
+    return 0
+}
+
+# A friendly pager wrapper: shows keybinds, waits for input, then pipes to less (-R for colors).
+paged_output() {
+    clear
+    echo "📝 Log Viewer Controls (powered by 'less'):"
+    echo "---------------------------------------------"
+    echo " ↑ / ↓        Scroll line by line"
+    echo " PgUp/PgDn    Scroll by page"
+    echo " q            Quit"
+    echo " /text        Search forward for 'text'"
+    echo " ?text        Search backward for 'text'"
+    echo " n            Jump to next match"
+    echo " N            Jump to previous match"
+    echo " g / G        Go to top / bottom"
+    echo " &pattern     Filter lines matching pattern"
+    echo "---------------------------------------------"
+    echo -e "\n\nPress any key to continue..."
+    read -r -s -n 1 </dev/tty
+    less -R -
+}

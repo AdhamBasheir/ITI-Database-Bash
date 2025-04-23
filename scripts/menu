@@ -1,0 +1,429 @@
+#!/usr/bin/bash
+########################################################################################
+
+# redirecting functions:
+########################
+db_menu() {
+    [[ "$user" != 'Guest' ]] && db_menu_write || db_menu_read
+}
+
+# $1: selected Database
+table_menu() {
+    [[ "$user" == 'root' || "$user" == "$owner" ]] && table_menu_write "$1" && return 0
+    [[ "$user" == 'Guest' ]] && table_menu_read "$1" && return 0
+
+    user_perm=$(check_permissions "$dbs_path/.$1" "$user" 'users')
+    mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
+    group_perm_func "$dbs_path/.$1" "$user_groups"
+    group_perm=$?
+
+    if [[ "$permissions_value" == 'private' ]]; then
+        [[ $group_perm -eq 3 ]] && $group_perm=2
+        [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && table_menu_write "$1" && return 0
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && table_menu_read "$1" && return 0
+        echo "you don't have permission" && sleep 2 && return 1
+    elif [[ "$permissions_value" == 'public' ]]; then
+        [[ $group_perm -eq 3 ]] && $group_perm=1
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission" && sleep 2 && return 1
+        [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && table_menu_read "$1" && return 0
+        table_menu_write "$1" && return 0
+    fi
+}
+
+# $1: Table Metadata File
+# $2: Table Data File
+crud_menu() {
+    [[ "$user" == 'root' || "$user" == "$owner" ]] && crud_menu_write "$1" "$2" && return 0
+    [[ "$user" == 'Guest' ]] && crud_menu_read "$1" "$2" && return 0
+
+    user_perm=$(check_permissions "$1" "$user" 'users')
+    mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
+    group_perm_func "$1" "$user_groups"
+    group_perm=$?
+
+    if [[ "$permissions_value" == 'private' ]]; then
+        [[ $group_perm -eq 3 ]] && $group_perm=2
+        [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && crud_menu_write "$1" "$2" && return 0
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && crud_menu_read "$1" "$2" && return 0
+        echo "you don't have permission" && sleep 2 && return 1
+    elif [[ "$permissions_value" == 'public' ]]; then
+        [[ $group_perm -eq 3 ]] && $group_perm=1
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission" && sleep 2 && return 1
+        [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && crud_menu_read "$1" "$2" && return 0
+        crud_menu_write "$1" "$2" && return 0
+    fi
+}
+
+########################################################################################
+
+db_menu_write() {
+    while true; do
+        clear
+        echo "Welcome $user to our DBMS, select what you want to do:"
+        echo "1) Create Database"
+        echo "2) Select Database"
+        echo "3) Rename Database"
+        echo "4) Delete Database"
+        echo "5) View Databases"
+        echo "6) Return to User Menu"
+        echo "7) Logout"
+        echo "8) Exit BDMS"
+
+        clear_buffer
+        read -r -s -n 1 option
+        clear
+
+        case $option in
+        1)
+            clear_buffer
+            read -r -p "Please enter the name of the Database you want to create: " db_name && db_name=$(stringify "$db_name")
+            create "$dbs_path" "$db_name" "db"
+            sleep 2
+            ;;
+        2)
+            clear_buffer
+            read -r -p "Please enter the name of the Database you want to select: " db_name && db_name=$(stringify "$db_name")
+            [[ -z "$db_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$dbs_path/$db_name" ]] && {
+                echo "'$db_name' does not exist."
+                sleep 2
+            } || select_ "$dbs_path" "$db_name"
+            ;;
+        3)
+            clear_buffer
+            read -r -p "Please enter the name of the Database you want to rename: " db_name && db_name=$(stringify "$db_name")
+            [[ -z "$db_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$dbs_path/$db_name" ]] && echo "'$db_name' does not exist." || rename "$db_name" "db"
+            sleep 2
+            ;;
+        4)
+            clear_buffer
+            read -r -p "Please enter the name of the Database you want to delete: " db_name && db_name=$(stringify "$db_name")
+            delete "$dbs_path" "$db_name" "db"
+            sleep 2
+            ;;
+        5)
+            content=$(ls "$dbs_path")
+            [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
+                echo "Databases:"
+                echo -e "\n$content\n"
+            }
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            ;;
+        6) return 0 ;;
+        7)
+            logout_func
+            return 0
+            ;;
+        8)
+            logout_func
+            sleep 2
+            exit 0
+            ;;
+        *)
+            echo "Invalid option. Please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+db_menu_read() {
+    while true; do
+        clear
+        echo "Welcome $user to our DBMS, select what you want to do:"
+        echo "1) Select Database"
+        echo "2) View Databases"
+        echo "3) Return to Main Menu"
+        echo "4) Exit BDMS"
+
+        clear_buffer
+        read -r -s -n 1 option
+        clear
+
+        case $option in
+        1)
+            clear_buffer
+            read -r -p "Please enter the name of the Database you want to select: " db_name && db_name=$(stringify "$db_name")
+            [[ -z "$db_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$db_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$dbs_path/$db_name" ]] && {
+                echo "'$db_name' does not exist."
+                sleep 2
+            } || select_ "$dbs_path" "$db_name"
+            ;;
+        2)
+            content=$(ls "$dbs_path")
+            [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
+                echo "Databases:"
+                echo -e "\n$content\n"
+            }
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            ;;
+        3) return 0 ;;
+        4)
+            echo "Goodbye Guest!"
+            sleep 2
+            exit 0
+            ;;
+        *)
+            echo "Invalid option. Please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+# $1: selected Database
+table_menu_write() {
+    db_path="$dbs_path/$1"
+    while true; do
+        clear
+        echo "Hello $user, Select what you want to do in Database '"$1"':"
+        echo "1) Create Table"
+        echo "2) Select Table"
+        echo "3) Rename Table"
+        echo "4) Delete Table"
+        echo "5) View Tables"
+        echo "6) Return to Main Menu"
+
+        clear_buffer
+        read -r -s -n 1 option
+        clear
+
+        case $option in
+        1)
+            clear_buffer
+            read -r -p "Please enter the name of the Table you want to create: " table_name && table_name=$(stringify "$table_name")
+            create "$db_path" "$table_name" "table"
+            sleep 2
+            ;;
+        2)
+            clear_buffer
+            read -r -p "Please enter the name of the Table you want to select: " table_name && table_name=$(stringify "$table_name")
+            [[ -z "$table_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$db_path/$table_name" ]] && {
+                echo "'$table_name' does not exist."
+                sleep 2
+            } || select_ "$db_path" "$table_name"
+            ;;
+        3)
+            clear_buffer
+            read -r -p "Please enter the name of the Table you want to rename: " table_name && table_name=$(stringify "$table_name")
+            [[ -z "$table_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$db_path/$table_name" ]] && echo "'$table_name' does not exist." || rename "$table_name" "table"
+            sleep 2
+            ;;
+        4)
+            clear_buffer
+            read -r -p "Please enter the name of the Table you want to delete: " table_name && table_name=$(stringify "$table_name")
+            delete "$db_path" "$table_name" "table"
+            sleep 2
+            ;;
+        5)
+            content=$(ls "$db_path")
+            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
+                echo "Tables in '$1':"
+                echo -e "\n$content\n"
+            }
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            ;;
+        6)
+            unset db_path
+            return 0
+            ;;
+        *)
+            echo "Invalid option. Please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+# $1: selected Database
+table_menu_read() {
+    db_path="$dbs_path/$1"
+    while true; do
+        clear
+        echo "Hello $user, Select what you want to do in Database '"$1"':"
+        echo "1) Select Table"
+        echo "2) View Tables"
+        echo "3) Return to Main Menu"
+
+        clear_buffer
+        read -r -s -n 1 option
+        clear
+
+        case $option in
+        1)
+            clear_buffer
+            read -r -p "Please enter the name of the Table you want to select: " table_name && table_name=$(stringify "$table_name")
+            [[ -z "$table_name" ]] && {
+                echo "Name cannot be whitespace"
+                sleep 2
+                continue
+            }
+            ! is_valid_name "$table_name" && {
+                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                sleep 2
+                continue
+            }
+            [[ ! -e "$db_path/$table_name" ]] && {
+                echo "'$table_name' does not exist."
+                sleep 2
+            } || select_ "$db_path" "$table_name"
+            ;;
+        2)
+            content=$(ls "$db_path")
+            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
+                echo "Tables in '$1':"
+                echo -e "\n$content\n"
+            }
+            clear_buffer
+            read -r -s -n 1 -p "Press any key to continue..."
+            ;;
+        3)
+            unset db_path
+            return 0
+            ;;
+        *)
+            echo "Invalid option. Please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
+# $1: Table Metadata File
+# $2: Table Data File
+crud_menu_write() {
+    while true; do
+        unset col_choice col_name
+
+        clear
+        echo "Hello $user, Select what you want to do in '$(basename "$2")' table:"
+        echo "1) Insert Record"
+        echo "2) Update Record"
+        echo "3) Replace Records"
+        echo "4) Delete Records"
+        echo "5) Select Records"
+        echo "6) Show All Records"
+        echo "7) Return to Database Menu"
+
+        clear_buffer
+        read -r -s -n 1 choice
+
+        case "$choice" in
+        1)
+            insert_record "$1" "$2"
+            sleep 2
+            ;;
+        2)
+            update_record "$1" "$2"
+            sleep 2
+            ;;
+        3)
+            replace_record "$1" "$2"
+            sleep 2
+            ;;
+        4)
+            delete_record "$1" "$2"
+            sleep 2
+            ;;
+        5)
+            find_record "$2" "$1" 'find'
+            pause_wait $?
+            ;;
+        6)
+            show_all_records "$2"
+            pause_wait $?
+            ;;
+        7) return 0 ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+
+    done
+}
+
+# $1: Table Metadata File
+# $2: Table Data File
+crud_menu_read() {
+    while true; do
+        unset col_choice col_name
+
+        clear
+        echo "Hello $user, Select what you want to do in '$(basename "$2")' table:"
+        echo "1) Select Records"
+        echo "2) Show All Records."
+        echo "3) Return to Database Menu"
+
+        clear_buffer
+        read -r -s -n 1 choice
+
+        case "$choice" in
+        1)
+            find_record "$2" "$1" 'find'
+            pause_wait $?
+            ;;
+        2)
+            show_all_records "$2"
+            pause_wait $?
+            ;;
+        3) return 0 ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}

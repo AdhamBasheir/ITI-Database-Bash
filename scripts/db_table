@@ -1,0 +1,186 @@
+#!/bin/bash
+########################################################################################
+
+# helper functions:
+###################
+
+# $1: Database
+is_empty() {
+    for item in $(ls "$1"); do
+        [[ $(wc -l <"$item") -gt 1 ]] && return 1
+    done
+    return 0
+}
+
+########################################################################################
+
+# main functions:
+#################
+
+# $1: parent directory
+# $2: Database or Table to be created
+# $3: 'db': Database, 'table': Table
+create() {
+    echo
+    [[ -z "$2" ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    ! is_valid_name "$2" && {
+        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        return 1
+    }
+    [[ -e "$1/$2" ]] && {
+        echo "'$2' already exists."
+        return 1
+    }
+
+    if [[ $3 == 'db' ]]; then
+        mkdir "$dbs_path/$2"
+        mkdir "$logs_path/tables/$2"
+        mkdir "$temp_path/$2"
+        echo "db_name${delimiter}$2" >>"$1/.$2"
+        echo "user '$user' created Database '$2' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' created Database '$2' at $(date)" >>"$logs_path/dbs/$2"
+        echo "owner${delimiter}$user" >>"$1/.$2"
+    elif [[ $3 == 'table' ]]; then
+        touch "$1/$2"
+        echo "db_name${delimiter}$(basename "$1")" >>"$1/.$2"
+        echo "table_name${delimiter}$2" >>"$1/.$2"
+        db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
+        echo "owner${delimiter}$db_owner" >>"$1/.$2"
+        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$1")"
+        echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
+    fi
+    echo "permissions${delimiter}init" >>"$1/.$2"
+    echo "created_by${delimiter}$user" >>"$1/.$2"
+    echo "created_at${delimiter}$(date)" >>"$1/.$2"
+
+    echo "'$2' created successfully."
+    return 0
+}
+
+# $1: parent directory
+# $2: Database or Table to be created
+# $3: 'db': Database, 'table': Table
+delete() {
+    echo
+    del='y'
+    [[ -z $2 ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    ! is_valid_name "$2" && {
+        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        return 1
+    }
+    [[ ! -e "$1/$2" ]] && {
+        echo "'$2' does not exist."
+        return 1
+    }
+
+    db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
+    if [[ "$user" != 'root' && "$user" != "$db_owner" ]]; then
+        echo "only database owner or root can delete $3"
+        return 1
+    fi
+
+    if { [[ $3 == "db" ]] && ! is_empty "$1/$2"; } || [[ $3 == "table" && $(wc -l <"$1/$2") -gt 1 ]]; then
+        echo "'$2' is not empty, are you sure you want to delete it?"
+        clear_buffer
+        read -r -p "Enter [y/Y] to confirm delete and anything else to cancel: " del
+        echo
+    fi
+
+    [[ $del != [yY] ]] && {
+        echo "delete canceled"
+        return 1
+    }
+
+    rm -r "$1/$2"
+    rm "$1/.$2"
+
+    [[ $3 == 'db' ]] && {
+        rm -r "$temp_path/$2"
+        rm -r "$logs_path/tables/$2"
+        rm "$logs_path/dbs/$2"
+        echo "user '$user' deleted Database '$2' at $(date)" >>"$logs_path/users/$user"
+    }
+    [[ $3 == 'table' ]] && {
+        rm "$logs_path/tables/$(basename "$1")/$2"
+        echo "user '$user' deleted Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' deleted Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$db_path")"
+    }
+
+    echo "'$2' is deleted successfully."
+    return 0
+}
+
+# $1: old name
+# $2: 'db': Database, 'table': Table
+rename() {
+    clear_buffer
+    read -r -p "Please enter the new name: " new_name && new_name=$(trim_tolower "$new_name")
+    echo
+
+    [[ -z "$new_name" ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    ! is_valid_name "$new_name" && {
+        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        return 1
+    }
+    { [[ $2 == 'db' ]] && path=$dbs_path; } || { [[ $2 == 'table' ]] && path=$db_path; }
+    [[ -e "$path/$new_name" ]] && {
+        echo "'$new_name' already exists"
+        return 1
+    }
+    mv "$path/$1" "$path/$new_name"
+    mv "$path/.$1" "$path/.$new_name"
+    new_name_escaped=$(escape_for_sed "$new_name")
+    sed -i "/^${2}_name/s/.*/${2}_name${delimiter}$new_name_escaped/" "$path/.$new_name"
+    sed -i "/updated_at/s/.*/updated_at${delimiter}$(date)/" "$path/.$new_name"
+    [[ $2 == 'db' ]] && {
+        mv "$logs_path/dbs/$1" "$logs_path/dbs/$new_name"
+        mv "$logs_path/tables/$1" "$logs_path/tables/$new_name"
+        mv "$temp_path/$1" "$temp_path/$new_name"
+        echo "user '$user' renamed Database '$1' to '$new_name' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' renamed Database '$1' to '$new_name' at $(date)" >>"$logs_path/dbs/$new_name"
+
+        sed -i "/^db_name/s/.*/db_name${delimiter}$new_name_escaped/" "$path/.$new_name"
+
+        if [[ -n "$(ls "$path/$new_name")" ]]; then
+            for metafile in $(ls -A "$path/$new_name"); do
+                if [[ "$metafile" == .* ]]; then
+                    sed -i "/^db_name/s/.*/db_name${delimiter}$new_name_escaped/" "$path/$new_name/$metafile"
+                fi
+            done
+        fi
+    }
+    [[ $2 == 'table' ]] && {
+        mv "$logs_path/tables/$(basename "$db_path")/$1" "$logs_path/tables/$(basename "$db_path")/$new_name"
+        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/dbs/$(basename "$db_path")"
+        echo "user '$user' renamed Table '$1' to '$new_name' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$new_name"
+    }
+
+    echo "'$1' is renamed successfully to '$new_name'"
+    return 0
+}
+
+# $1: parent directory
+# $2: selected Database or Table
+select_() {
+    permissions_value=$(awk -F "$delimiter" '/^permissions/ {print $2}' "$1/.$2")
+    owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
+
+    if [[ $permissions_value != "init" ]]; then
+        [[ -d "$1/$2" ]] && table_menu "$2"
+        [[ -f "$1/$2" ]] && crud_menu "$1/.$2" "$1/$2"
+    else
+        [[ -d "$1/$2" ]] && db_init "$2" && table_menu "$2"
+        [[ -f "$1/$2" ]] && table_init "$1" "$2" && crud_menu "$1/.$2" "$1/$2"
+    fi
+}

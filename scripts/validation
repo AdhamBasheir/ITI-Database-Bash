@@ -1,0 +1,40 @@
+#!/bin/bash
+########################################################################################
+
+# valid DataTypes
+validDataTypes=("int" "str" "email" "phone" "date")
+
+# $1: DataType to check if valid
+is_type() {
+    [[ " ${validDataTypes[*]} " == *" $1 "* ]]
+}
+
+# $1: value to check if no delimiter
+no_delimiter() {
+    [[ "$1" != *"$delimiter"* ]]
+}
+
+# $1: value to check if integer
+is_int() {
+    [[ "$1" =~ ^-?[0-9]+$ ]]
+}
+
+# $1: value to check if email
+is_email() {
+    [[ "$1" =~ ^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$ ]]
+}
+
+# $1: value to check if phone
+is_phone() {
+    [[ "$1" =~ ^(01[0125])[0-9]{8}$ ]]
+}
+
+# $1: value to check if date
+is_date() {
+    [[ "$1" =~ ^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$ ]] && date -d "$1" "+%Y-%m-%d" 2>/dev/null
+}
+
+# $1: value to check if does not start with '.' and does not contain '/' nor the delimiter
+is_valid_name() {
+    [[ ! "$1" =~ ^\. && ! "$1" =~ \/ && "$1" != *"$delimiter"* ]]
+}

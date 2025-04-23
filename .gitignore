@@ -1,0 +1,14 @@
+# Test Direcroty
+test
+
+# The directory that holds all databases
+.DBs
+
+# Credentials Directory
+.Credentials
+
+# Logs Directory
+.Logs
+
+# temp metadata Directory
+.temp
