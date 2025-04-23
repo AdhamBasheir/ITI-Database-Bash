@@ -17,12 +17,7 @@ source "$(dirname "$0")"/scripts/utils
 # Use ASCII Unit Separator (0x1F) as a field delimiter
 delimiter=$'\x1f'
 
-# Initialize Parent Directory
-dbs_path="$(dirname "$0")/.data/.DBs"
-[[ ! -e "$dbs_path" ]] && mkdir -p "$dbs_path"
-
 # Initialize Credentials Directory
-auth_path="$(dirname "$0")/.data/.Credentials"
 auth_path="$(dirname "$0")/.data/.Credentials"
 [[ ! -e "$auth_path/users/root" ]] && {
     clear
@@ -57,8 +52,11 @@ auth_path="$(dirname "$0")/.data/.Credentials"
     unset root_salt root_hashed_password pass1 pass2
 }
 
+# Initialize Parent Directory
+dbs_path="$(dirname "$0")/.data/.DBs"
+[[ ! -e "$dbs_path" ]] && mkdir "$dbs_path"
+
 # Initialize Logs Directory
-logs_path="$(dirname "$0")/.data/.Logs"
 logs_path="$(dirname "$0")/.data/.Logs"
 [[ ! -e "$logs_path" ]] && {
     mkdir -p "$logs_path/users"
@@ -69,7 +67,6 @@ logs_path="$(dirname "$0")/.data/.Logs"
 }
 
 # Initialize temp metadata Directory
-temp_path="$(dirname "$0")/.data/.temp"
 temp_path="$(dirname "$0")/.data/.temp"
 [[ ! -e "$temp_path" ]] && mkdir "$temp_path"
 
