@@ -27,7 +27,7 @@ create() {
         return 1
     }
     ! is_valid_name "$2" && {
-        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
     [[ -e "$1/$2" ]] && {
@@ -72,7 +72,7 @@ delete() {
         return 1
     }
     ! is_valid_name "$2" && {
-        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
     [[ ! -e "$1/$2" ]] && {
@@ -129,7 +129,7 @@ rename() {
         return 1
     }
     ! is_valid_name "$new_name" && {
-        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
     { [[ $2 == 'db' ]] && path=$dbs_path; } || { [[ $2 == 'table' ]] && path=$db_path; }

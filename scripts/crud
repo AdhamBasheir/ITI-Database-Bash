@@ -91,7 +91,7 @@ validate_input() {
         read -r -p "$msg" value && value=$(trim_tolower "$value")
         [[ "$value" == "n/a" ]] && value=""
         [[ "$value" == "/" ]] && return 1
-        
+
         if ! no_delimiter "$value"; then
             echo "Error: '$field' must not contain the control character '0x1f'."
             continue
@@ -129,7 +129,12 @@ validate_input() {
 
         if [[ -n "$value" ]]; then
             case "$type" in
-            "str") ;;
+            "str")
+                if ! is_string "$value"; then
+                    echo "Error: '$field' must be an string. only alphanumeric, spaces or hyphens are allowed"
+                    continue
+                fi
+                ;;
             "int")
                 if ! is_int "$value"; then
                     echo "Error: '$field' must be an integer."
@@ -255,7 +260,7 @@ update_record() {
 
     clear_buffer
     read -r -p "Are you sure you want to update this record? Press [y/Y] to confirm update and anything else to cancel:  " confirmation
-    [[ "$confirmation" != [Yy] ]] && {
+    [[ "$confirmation" != [yY] ]] && {
         echo -e "\nUpdating canceled."
         return 1
     }
@@ -289,7 +294,7 @@ replace_record() {
 
     clear_buffer
     read -r -p "Are you sure you want to replace values in $matching_count record(s)? Press [y/Y] to confirm replace and anything else to cancel:  " confirmation
-    [[ "$confirmation" != [Yy] ]] && {
+    [[ "$confirmation" != [yY] ]] && {
         echo -e "\nUpdating canceled."
         return 1
     }
@@ -328,7 +333,7 @@ delete_record() {
     echo "*****************************************"
     clear_buffer
     read -r -p "Are you sure you want to delete $matching_count record(s)? Press [y/Y] to confirm delete and anything else to cancel: " confirmation
-    [[ "$confirmation" != [Yy] ]] && {
+    [[ "$confirmation" != [yY] ]] && {
         echo -e "\nDeletion canceled."
         return 1
     }

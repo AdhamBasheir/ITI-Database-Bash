@@ -22,7 +22,7 @@ login_func() {
         return 1
     }
     ! is_valid_name "$name" && {
-        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
     if [[ $1 == 'group' && -e "$auth_path/groups/$name" ]]; then
@@ -97,7 +97,7 @@ register_func() {
         return 1
     }
     ! is_valid_name "$name" && {
-        echo -e "\nInvalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
     [[ -e "$auth_path/users/$name" ]] && $1 == 'user' && {
@@ -151,6 +151,61 @@ register_func() {
     fi
 
     unset pass1 pass2
+    return 0
+}
+
+backup_func() {
+    clear
+    local backup_name="$(date +"%Y-%m-%d_%H-%M-%S")"
+
+    while true; do
+        if tar -czf "$backup_path/$backup_name.tar.gz" -C "$(dirname "$data_path")" "$(basename "$data_path")"; then
+            echo "✅ Backup created: $backup_path/$backup_name.tar.gz"
+            break
+        else
+            echo "❌ Failed to create backup."
+            clear_buffer
+            read -r -p "Do you want to try again? ([y/Y] to retry): " retry
+            [[ "$retry" != [yY] ]] && break
+        fi
+    done
+
+    return 0
+}
+
+restore_func() {
+    clear
+    local backups=("$backup_path"/*.tar.gz)
+
+    if (( ${#backups[@]} == 0 )); then
+        echo "⚠️ No backups found in $backup_path"
+        return 1
+    fi
+
+    echo "🔍 Available backups:"
+    echo "----------------------------------------------------------------------------------------------"
+    echo "${backups[@]}" | tr ' ' '\n' | sed 's|.*/.backup/||' | sed 's|\.tar\.gz$||' | sort -r | nl -w1 -s')'
+    clear_buffer
+    echo "----------------------------------------------------------------------------------------------"
+    read -r -p "Enter the number of the backup to restore: " choice
+
+    if ! is_int "$choice" || (( choice < 1 || choice > ${#backups[@]} )); then
+        echo "❌ Invalid selection."
+        return 1
+    fi
+
+    local selected_backup="${backups[$(( ${#backups[@]} - choice ))]}"
+
+    echo "⚠️ This will replace current data with the backup."
+    read -r -p "Are you sure you want to continue? ([y/Y] to proceed): " confirm
+    [[ "$confirm" != [yY] ]] && {
+        echo "❌ Restore canceled."
+        return 1
+    }
+
+    rm -rf "$data_path"
+    tar -xzf "$selected_backup" -C "$(dirname "$data_path")"
+    echo "✅ Restore complete!"
     return 0
 }
 
@@ -385,6 +440,36 @@ tables_logs() {
 
 ########################################################################################
 
+backup_menu() {
+    while true; do
+        clear
+        echo "Welcome root to Backup Menu"
+        echo "1) Backup Data"
+        echo "2) Restore Data"
+        echo "3) Return to Root Menu"
+
+        clear_buffer
+        read -r -s -n 1 choice
+        clear
+
+        case "$choice" in
+        1)
+            backup_func
+            sleep 2
+            ;;
+        2)
+            restore_func
+            sleep 2
+            ;;
+        3) return 0 ;;
+        *)
+            echo "Invalid choice, please try again."
+            sleep 2
+            ;;
+        esac
+    done
+}
+
 log_menu() {
     while true; do
         clear
@@ -512,8 +597,9 @@ root_menu() {
         echo "1) DBMS"
         echo "2) Groups"
         echo "3) Logs"
-        echo "4) Logout"
-        echo "5) Exit"
+        echo "4) Backup"
+        echo "5) Logout"
+        echo "6) Exit"
 
         clear_buffer
         read -r -s -n 1 choice
@@ -535,10 +621,13 @@ root_menu() {
             log_menu
             ;;
         4)
+            backup_menu
+            ;;
+        5)
             logout_func
             return 0
             ;;
-        5)
+        6)
             logout_func
             sleep 2
             exit 0

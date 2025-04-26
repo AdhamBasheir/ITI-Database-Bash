@@ -89,7 +89,7 @@ db_menu_write() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }
@@ -107,7 +107,7 @@ db_menu_write() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }
@@ -170,7 +170,7 @@ db_menu_read() {
                 continue
             }
             ! is_valid_name "$db_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }
@@ -235,7 +235,7 @@ table_menu_write() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }
@@ -253,7 +253,7 @@ table_menu_write() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }
@@ -311,7 +311,7 @@ table_menu_read() {
                 continue
             }
             ! is_valid_name "$table_name" && {
-                echo "Invalid name. The name must not start with a '.', and it cannot contain '/', or the control character '0x1f'."
+                echo "Invalid name. The name can only contain alphanumerical or hyphens."
                 sleep 2
                 continue
             }

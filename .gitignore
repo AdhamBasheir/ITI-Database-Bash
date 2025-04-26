@@ -1,14 +1,8 @@
 # Test Direcroty
 test
 
-# The directory that holds all databases
-.DBs
+# Data Directory
+.data
 
-# Credentials Directory
-.Credentials
-
-# Logs Directory
-.Logs
-
-# temp metadata Directory
-.temp
+# Backup Directory
+.backup
