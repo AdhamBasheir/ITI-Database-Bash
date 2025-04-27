@@ -156,11 +156,20 @@ register_func() {
 
 backup_func() {
     clear
-    local backup_name="$(date +"%Y-%m-%d_%H-%M-%S")"
+    read -r -p "Please enter the name of the backup: " backup_name && backup_name=$(stringify "$backup_name")
+    [[ -z "$backup_name" ]] && {
+        echo -e "\nName cannot be whitespace."
+        return 1
+    }
+    ! is_valid_name "$backup_name" && {
+        echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
+        return 1
+    }
+    backup_name="$(date +"%Y-%m-%d_%H-%M-%S")_$backup_name"
 
     while true; do
         if tar -czf "$backup_path/$backup_name.tar.gz" -C "$(dirname "$data_path")" "$(basename "$data_path")"; then
-            echo "✅ Backup created: $backup_path/$backup_name.tar.gz"
+            echo "✅ Backup created: $backup_name.tar.gz"
             break
         else
             echo "❌ Failed to create backup."

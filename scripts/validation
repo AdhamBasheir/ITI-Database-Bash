@@ -21,7 +21,7 @@ is_int() {
 
 # $1: value to if string. only alphanumeric, spaces or hyphens are allowed
 is_string() {
-    [[ "$1" =~ ^[a-z0-9 -]+$ ]]
+    [[ "$1" =~ ^[-a-z0-9[:space:]]+$ ]]
 }
 
 # $1: value to check if email
@@ -43,5 +43,5 @@ is_date() {
 # $1: must be alphanumeric or hyphen
 is_valid_name() {
     [[ ! "$1" =~ ^\. && ! "$1" =~ \/ && "$1" != *"$delimiter"* ]] || return 1
-    [[ "$1" =~ ^[a-z0-9-]+$]]
+    [[ "$1" =~ ^[-a-z0-9[:space:]]+$ ]]
 }

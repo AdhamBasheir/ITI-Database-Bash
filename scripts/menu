@@ -124,10 +124,9 @@ db_menu_write() {
             content=$(ls "$dbs_path")
             [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
                 echo "Databases:"
-                echo -e "\n$content\n"
-            }
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+                echo "------------------------------------------------------"
+                echo "$content"
+            } | paged_output
             ;;
         6) return 0 ;;
         7)
@@ -183,10 +182,9 @@ db_menu_read() {
             content=$(ls "$dbs_path")
             [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
                 echo "Databases:"
-                echo -e "\n$content\n"
-            }
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+                echo "------------------------------------------------------"
+                echo "$content"
+            } | paged_output
             ;;
         3) return 0 ;;
         4)
@@ -270,10 +268,9 @@ table_menu_write() {
             content=$(ls "$db_path")
             [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
                 echo "Tables in '$1':"
-                echo -e "\n$content\n"
-            }
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+                echo "------------------------------------------------------"
+                echo "$content"
+            } | paged_output
             ;;
         6)
             unset db_path
@@ -324,10 +321,9 @@ table_menu_read() {
             content=$(ls "$db_path")
             [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
                 echo "Tables in '$1':"
-                echo -e "\n$content\n"
-            }
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+                echo "------------------------------------------------------"
+                echo "$content"
+            } | paged_output
             ;;
         3)
             unset db_path
@@ -379,11 +375,9 @@ crud_menu_write() {
             ;;
         5)
             find_record "$2" "$1" 'find'
-            pause_wait $?
             ;;
         6)
             show_all_records "$2"
-            pause_wait $?
             ;;
         7) return 0 ;;
         *)
@@ -413,11 +407,9 @@ crud_menu_read() {
         case "$choice" in
         1)
             find_record "$2" "$1" 'find'
-            pause_wait $?
             ;;
         2)
             show_all_records "$2"
-            pause_wait $?
             ;;
         3) return 0 ;;
         *)
