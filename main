@@ -79,3 +79,4 @@ temp_path="$data_path/.Temp"
 [[ ! -e "$temp_path" ]] && mkdir "$temp_path"
 
 auth_menu
+clear

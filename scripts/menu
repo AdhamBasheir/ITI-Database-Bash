@@ -136,6 +136,7 @@ db_menu_write() {
         8)
             logout_func
             sleep 2
+            clear
             exit 0
             ;;
         *)
@@ -190,6 +191,7 @@ db_menu_read() {
         4)
             echo "Goodbye Guest!"
             sleep 2
+            clear
             exit 0
             ;;
         *)
@@ -351,7 +353,8 @@ crud_menu_write() {
         echo "4) Delete Records"
         echo "5) Select Records"
         echo "6) Show All Records"
-        echo "7) Return to Database Menu"
+        echo "7) Clear All Records"
+        echo "8) Return to Database Menu"
 
         clear_buffer
         read -r -s -n 1 choice
@@ -374,12 +377,16 @@ crud_menu_write() {
             sleep 2
             ;;
         5)
-            find_record "$2" "$1" 'find'
+            find_record "$1" "$2" 'find'
             ;;
         6)
             show_all_records "$2"
             ;;
-        7) return 0 ;;
+        7)
+            clear_all_records "$1" "$2"
+            sleep 2
+            ;;
+        8) return 0 ;;
         *)
             echo "Invalid choice, please try again."
             sleep 2
@@ -406,7 +413,7 @@ crud_menu_read() {
 
         case "$choice" in
         1)
-            find_record "$2" "$1" 'find'
+            find_record "$1" "$2" 'find'
             ;;
         2)
             show_all_records "$2"

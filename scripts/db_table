@@ -4,10 +4,15 @@
 # helper functions:
 ###################
 
+# $1: Table file
+is_empty_table() {
+    [[ $(wc -l <"$1") -le 1 ]]
+}
+
 # $1: Database
-is_empty() {
+is_empty_db() {
     for item in $(ls "$1"); do
-        [[ $(wc -l <"$item") -gt 1 ]] && return 1
+        is_empty_table "$1/$item" || return 1
     done
     return 0
 }
@@ -82,16 +87,16 @@ delete() {
 
     db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
     if [[ "$user" != 'root' && "$user" != "$db_owner" ]]; then
-        echo "only database owner or root can delete $3"
+        echo "only database owner or root can delete $3."
         return 1
     fi
 
-    if { [[ $3 == "db" ]] && ! is_empty "$1/$2"; } || [[ $3 == "table" && $(wc -l <"$1/$2") -gt 1 ]]; then
-        echo "'$2' is not empty, are you sure you want to delete it?"
-        clear_buffer
-        read -r -p "Enter [y/Y] to confirm delete and anything else to cancel: " del
-        echo
-    fi
+    local is_empty="is_empty_${3}"
+    $is_empty "$1/$2" || echo -n "'$2' is not empty. "
+    echo "Are you sure you want to delete it? "
+    clear_buffer
+    read -r -p "Enter [y/Y] to confirm delete and anything else to cancel: " del
+    echo
 
     [[ $del != [yY] ]] && {
         echo "delete canceled"
