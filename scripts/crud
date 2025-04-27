@@ -357,8 +357,8 @@ delete_record() {
 # $2: Meta Data File
 # $3: flags: 'find', 'delete', 'replace'
 find_record() {
-    local table_file="$1"
-    local meta_file="$2"
+    local meta_file="$1"
+    local table_file="$2"
 
     [[ "$3" == 'find' ]] && {
         clear
@@ -403,6 +403,37 @@ show_all_records() {
         return 0
     } || {
         echo "No records found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
         return 1
     }
+}
+
+clear_all_records() {
+    local meta_file="$1"
+    local table_file="$2"
+
+    clear
+    db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$2")
+    if [[ "$user" != 'root' && "$user" != "$db_owner" ]]; then
+        echo "only database owner or root can clear table records."
+        return 1
+    fi
+
+    clear_buffer
+    read -r -p "Are you sure you want to delete all records? Press [y/Y] to confirm delete and anything else to cancel: " confirmation
+    [[ "$confirmation" != [yY] ]] && {
+        echo -e "\nDeletion canceled."
+        return 1
+    }
+
+    rm "$table_file"
+    get_headers "$meta_file" >"$table_file"
+
+    sed -i "/^rows/s/.*/rows${delimiter}0/" "$meta_file"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$meta_file"
+    echo "user '$user' cleared Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
+    echo "user '$user' cleared Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/tables/$(basename "$db_path")/$(basename "$2")"
+    echo -e "\nAll records deleted successfully!"
+    return 0
 }

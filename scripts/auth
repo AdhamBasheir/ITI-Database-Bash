@@ -193,7 +193,7 @@ restore_func() {
 
     echo "🔍 Available backups:"
     echo "----------------------------------------------------------------------------------------------"
-    echo "${backups[@]}" | tr ' ' '\n' | sed 's|.*/.backup/||' | sed 's|\.tar\.gz$||' | sort -r | nl -w1 -s')'
+    echo "${backups[@]}" | tr ' ' '\n' | sed 's|.*/.backup/||' | sed 's|\.tar\.gz$||' | sort -r | nl -w1 -s') '
     clear_buffer
     echo "----------------------------------------------------------------------------------------------"
     read -r -p "Enter the number of the backup to restore: " choice
@@ -589,6 +589,7 @@ user_menu() {
         5)
             logout_func
             sleep 2
+            clear
             exit 0
             ;;
         *)
@@ -639,6 +640,7 @@ root_menu() {
         6)
             logout_func
             sleep 2
+            clear
             exit 0
             ;;
         *)
@@ -679,6 +681,7 @@ auth_menu() {
         4)
             echo "Goodbye!"
             sleep 2
+            clear
             exit 0
             ;;
         *)
