@@ -43,7 +43,7 @@ This project is a simple yet powerful database system with built-in user, group,
 
 ### Backup and Restore
 - Root user can backup and restore the system data.
-- Backup files are named by date and time.
+- Backup files are named by date, time, and a custom name.
 
 ## Planned Features
 
@@ -58,9 +58,6 @@ This project is a simple yet powerful database system with built-in user, group,
 
 ### Data Type Enhancements
 - Remove current restrictions on the `string` type to allow any characters.
-
-### Backup Enhancements
-- Allow the root user to add a custom name to the backup filename.
 
 ## Security Notes
 - All sensitive information is handled securely.
