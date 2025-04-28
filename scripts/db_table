@@ -53,7 +53,7 @@ create() {
         echo "db_name${delimiter}$(basename "$1")" >>"$1/.$2"
         echo "table_name${delimiter}$2" >>"$1/.$2"
         db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
-        echo "owner${delimiter}$db_owner" >>"$1/.$2"
+        echo "owner${delimiter}$db_owner${delimiter}$user" >>"$1/.$2"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$1")"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"

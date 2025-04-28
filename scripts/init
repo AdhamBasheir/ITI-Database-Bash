@@ -171,20 +171,12 @@ set_permissions() {
 # $1: Database Path
 # $2: Table to be created
 table_init() {
-    [[ "$user" == 'root' || "$user" == "$owner" ]] || {
-        user_perm=$(check_permissions "$1/.$2" "$user" 'users')
-        mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
-        group_perm_func "$1/.$2" "$user_groups"
-        group_perm=$?
-
-        if [[ "$permissions_value" == 'private' ]]; then
-            [[ "$user_perm" != 'write' && $group_perm -lt 2 ]] && echo "you don't have permission" && sleep 2 && return 1
-        elif [[ "$permissions_value" == 'public' ]]; then
-            [[ $group_perm -eq 3 ]] && $group_perm=1
-            [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission" && sleep 2 && return 1
-        fi
+    local table_owner=$(awk -F "$delimiter" '/^owner/ {print $3}' "$1/.$2")
+    [[ "$user" == 'root' || "$user" == "$owner" || "$user" == "$table_owner" ]] || {
+        echo "you don't have permission"
+        sleep 2
+        return 1
     }
-
     clear
     while true; do
         clear_buffer
@@ -244,7 +236,7 @@ table_init() {
         return 1
     }
 
-    echo "updated_at${delimiter}$(date)" >>"$1/.$2"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$1/.$2"
     echo "columns${delimiter}$colNum" >>"$1/.$2"
     echo "rows${delimiter}0" >>"$1/.$2"
     echo "pk${delimiter}$pk_name${delimiter}$pk" >>"$1/.$2"
@@ -284,7 +276,7 @@ db_init() {
         return 1
     }
 
-    echo "updated_at${delimiter}$(date)" >>"$dbs_path/.$1"
+    sed -i "/^updated_at/s/.*/updated_at${delimiter}$(date)/" "$dbs_path/.$1"
     sed -i "/^permissions/ {
     r $temp_path/$1.permissions.$user
     d
