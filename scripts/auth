@@ -100,11 +100,11 @@ register_func() {
         echo -e "\nInvalid name. The name can only contain alphanumerical or hyphens."
         return 1
     }
-    [[ -e "$auth_path/users/$name" ]] && $1 == 'user' && {
+    [[ -e "$auth_path/users/$name" && "$1" == 'user' ]] && {
         echo -e "\nuser '$name' already exists."
         return 1
     }
-    [[ -e "$auth_path/groups/$name" ]] && $1 == 'group' && {
+    [[ -e "$auth_path/groups/$name" && "$1" == 'group' ]] && {
         echo -e "\ngroup '$name' already exists."
         return 1
     }
@@ -186,7 +186,7 @@ restore_func() {
     clear
     local backups=("$backup_path"/*.tar.gz)
 
-    if (( ${#backups[@]} == 0 )); then
+    if ((${#backups[@]} == 0)); then
         echo "⚠️ No backups found in $backup_path"
         return 1
     fi
@@ -198,12 +198,12 @@ restore_func() {
     echo "-------------------------------------------------------------------------------------------------------------------------"
     read -r -p "Enter the number of the backup to restore: " choice
 
-    if ! is_int "$choice" || (( choice < 1 || choice > ${#backups[@]} )); then
+    if ! is_int "$choice" || ((choice < 1 || choice > ${#backups[@]})); then
         echo "❌ Invalid selection."
         return 1
     fi
 
-    local selected_backup="${backups[$(( ${#backups[@]} - choice ))]}"
+    local selected_backup="${backups[$((${#backups[@]} - choice))]}"
 
     echo "⚠️ This will replace current data with the backup."
     read -r -p "Are you sure you want to continue? ([y/Y] to proceed): " confirm
