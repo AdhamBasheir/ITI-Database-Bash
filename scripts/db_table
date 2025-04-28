@@ -181,6 +181,12 @@ select_() {
     permissions_value=$(awk -F "$delimiter" '/^permissions/ {print $2}' "$1/.$2")
     owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
 
+    [[ "$user" == 'Guest' ]] && [[ "$permissions_value" != 'public' ]] && {
+        echo "you don't have permission"
+        sleep 2
+        return 1
+    }
+
     if [[ $permissions_value != "init" ]]; then
         [[ -d "$1/$2" ]] && table_menu "$2"
         [[ -f "$1/$2" ]] && crud_menu "$1/.$2" "$1/$2"

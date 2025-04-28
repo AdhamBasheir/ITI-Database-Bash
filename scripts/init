@@ -172,12 +172,6 @@ set_permissions() {
 # $2: Table to be created
 table_init() {
     [[ "$user" == 'root' || "$user" == "$owner" ]] || {
-        if [[ "$user" == 'Guest' ]]; then
-            echo "Table '$2' is not initialized"
-            sleep 2
-            return 1
-        fi
-
         user_perm=$(check_permissions "$1/.$2" "$user" 'users')
         mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")
         group_perm_func "$1/.$2" "$user_groups"
@@ -256,9 +250,10 @@ table_init() {
     echo "pk${delimiter}$pk_name${delimiter}$pk" >>"$1/.$2"
     cat "$temp_path/$(basename "$1")/$2.init.$user" >>"$1/.$2"
     rm -f "$temp_path/$(basename "$1")/$2.init.$user"
-
-    sed -i "/^permissions/r $temp_path/$(basename "$1")/$2.permissions.$user" "$1/.$2"
-    sed -i "/^permissions/d" "$1/.$2"
+    sed -i "/^permissions/ {
+    r $temp_path/$(basename "$1")/$2.permissions.$user
+    d
+    }" "$1/.$2"
     rm -f "$temp_path/$(basename "$1")/$2.permissions.$user"
 
     get_headers "$1/.$2" >"$1/$2"
@@ -290,8 +285,11 @@ db_init() {
     }
 
     echo "updated_at${delimiter}$(date)" >>"$dbs_path/.$1"
-    sed -i "/^permissions/r $temp_path/$1.permissions.$user" "$dbs_path/.$1"
-    sed -i "/^permissions/d" "$dbs_path/.$1"
+    sed -i "/^permissions/ {
+    r $temp_path/$1.permissions.$user
+    d
+    }" "$dbs_path/.$1"
+
     rm -f "$temp_path/$1.permissions.$user"
     echo "user '$user' initialized Database '$1' at $(date)" >>"$logs_path/users/$user"
     echo "user '$user' initialized Database '$1' at $(date)" >>"$logs_path/dbs/$1"

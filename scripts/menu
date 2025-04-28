@@ -11,6 +11,21 @@ db_menu() {
 table_menu() {
     [[ "$user" == 'root' || "$user" == "$owner" ]] && table_menu_write "$1" && return 0
     [[ "$user" == 'Guest' ]] && table_menu_read "$1" && return 0
+    [[ "$user" == 'Guest' ]] && {
+        table_menu_read "$1"
+        return 0
+    }
+    if [[ "$user" == 'Guest' ]]; then
+        [[ "$permissions_value" == 'public' ]] && {
+            table_menu_read "$1"
+            return 0
+        }
+        [[ "$permissions_value" == 'private' ]] && {
+            echo "you don't have permission"
+            sleep 2
+            return 1
+        }
+    fi
 
     user_perm=$(check_permissions "$dbs_path/.$1" "$user" 'users')
     mapfile -t user_groups < <(awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user")

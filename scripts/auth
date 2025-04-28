@@ -678,6 +678,7 @@ auth_menu() {
             ;;
         3)
             db_menu
+            echo "Goodbye!"
             sleep 2
             ;;
         4)
