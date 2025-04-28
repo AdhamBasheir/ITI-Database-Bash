@@ -57,7 +57,7 @@ login_func() {
         status_value=$(awk -F "$delimiter" '/^status/ {print $2}' "$auth_path/users/$user")
 
         if [[ $status_value == 'online' ]]; then
-            echo -e "\nuser is already logged in"
+            echo -e "\nuser '$name' is already logged in"
             user="Guest"
             return 1
         fi
