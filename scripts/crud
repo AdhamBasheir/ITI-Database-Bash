@@ -254,6 +254,10 @@ update_record() {
         return 1
     }
 
+    echo -e "\nThe record you are going to update is:"
+    echo "*****************************************"
+    sed -n -e '1p' -e "${updated_line}p" "$table_file" | column -t -s "$delimiter"
+    echo "*****************************************"
     echo "Enter '/' to cancel update:"
     new_record "$meta_file" "$table_file" "update"
     [[ $? -ne 0 ]] && echo -e "\nUpdating cancled" && return 1
