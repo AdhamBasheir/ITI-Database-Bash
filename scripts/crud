@@ -239,6 +239,12 @@ update_record() {
     local table_file="$2"
 
     clear
+    is_empty_table "$table_file" && {
+        echo "No records found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
     echo "Welcome to the record/s update wizard!"
     echo "*****************************************"
 
@@ -283,6 +289,12 @@ replace_record() {
     local table_file="$2"
 
     clear
+    is_empty_table "$table_file" && {
+        echo "No records found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
     echo "Welcome to the record/s replace wizard!"
     echo "*****************************************"
 
@@ -328,6 +340,12 @@ delete_record() {
     local table_file="$2"
 
     clear
+    is_empty_table "$table_file" && {
+        echo "No records found."
+        clear_buffer
+        read -r -s -n 1 -p "Press any key to continue..."
+        return 1
+    }
     echo "Welcome to the record deletion wizard!"
     echo "*****************************************"
 
@@ -365,6 +383,7 @@ find_record() {
     local table_file="$2"
 
     is_empty_table "$table_file" && {
+        clear
         echo "No records found."
         clear_buffer
         read -r -s -n 1 -p "Press any key to continue..."
@@ -425,16 +444,13 @@ clear_all_records() {
     local table_file="$2"
 
     clear
-    db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$2")
-    if [[ "$user" != 'root' && "$user" != "$db_owner" ]]; then
-        echo "only database owner or root can clear table records."
+    if [[ "$user" != 'root' && "$user" != "$owner_db" && "$user" != "$owner_table" ]]; then
+        echo "you don't have permission."
         return 1
     fi
 
     is_empty_table "$table_file" && {
         echo "No records found."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
         return 1
     }
 

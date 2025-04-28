@@ -9,7 +9,7 @@ db_menu() {
 
 # $1: selected Database
 table_menu() {
-    [[ "$user" == 'root' || "$user" == "$owner" ]] && table_menu_write "$1" && return 0
+    [[ "$user" == 'root' || "$user" == "$owner_db" ]] && table_menu_write "$1" && return 0
     [[ "$user" == 'Guest' ]] && table_menu_read "$1" && return 0
     [[ "$user" == 'Guest' ]] && {
         table_menu_read "$1"
@@ -21,7 +21,7 @@ table_menu() {
             return 0
         }
         [[ "$permissions_value" == 'private' ]] && {
-            echo "you don't have permission"
+            echo "you don't have permission."
             sleep 2
             return 1
         }
@@ -36,10 +36,10 @@ table_menu() {
         [[ $group_perm -eq 3 ]] && $group_perm=2
         [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && table_menu_write "$1" && return 0
         [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && table_menu_read "$1" && return 0
-        echo "you don't have permission" && sleep 2 && return 1
+        echo "you don't have permission." && sleep 2 && return 1
     elif [[ "$permissions_value" == 'public' ]]; then
         [[ $group_perm -eq 3 ]] && $group_perm=1
-        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission" && sleep 2 && return 1
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission." && sleep 2 && return 1
         [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && table_menu_read "$1" && return 0
         table_menu_write "$1" && return 0
     fi
@@ -48,7 +48,7 @@ table_menu() {
 # $1: Table Metadata File
 # $2: Table Data File
 crud_menu() {
-    [[ "$user" == 'root' || "$user" == "$owner" ]] && crud_menu_write "$1" "$2" && return 0
+    [[ "$user" == 'root' || "$user" == "$owner_db" || "$user" == "$owner_table" ]] && crud_menu_write "$1" "$2" && return 0
     [[ "$user" == 'Guest' ]] && crud_menu_read "$1" "$2" && return 0
 
     user_perm=$(check_permissions "$1" "$user" 'users')
@@ -60,10 +60,10 @@ crud_menu() {
         [[ $group_perm -eq 3 ]] && $group_perm=2
         [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && crud_menu_write "$1" "$2" && return 0
         [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && crud_menu_read "$1" "$2" && return 0
-        echo "you don't have permission" && sleep 2 && return 1
+        echo "you don't have permission." && sleep 2 && return 1
     elif [[ "$permissions_value" == 'public' ]]; then
         [[ $group_perm -eq 3 ]] && $group_perm=1
-        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission" && sleep 2 && return 1
+        [[ "$user_perm" == 'read' || $group_perm -eq 1 ]] && echo "you don't have permission." && sleep 2 && return 1
         [[ "$user_perm" == 'write' || $group_perm -eq 2 ]] && crud_menu_read "$1" "$2" && return 0
         crud_menu_write "$1" "$2" && return 0
     fi

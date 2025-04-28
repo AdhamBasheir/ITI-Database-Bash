@@ -52,8 +52,8 @@ create() {
         touch "$1/$2"
         echo "db_name${delimiter}$(basename "$1")" >>"$1/.$2"
         echo "table_name${delimiter}$2" >>"$1/.$2"
-        db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
-        echo "owner${delimiter}$db_owner${delimiter}$user" >>"$1/.$2"
+        local owner_db=$(awk -F "$delimiter" '/^owner/ {print $2}' "$dbs_path/.$(basename "$1")")
+        echo "owner${delimiter}$owner_db${delimiter}$user" >>"$1/.$2"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/users/$user"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/dbs/$(basename "$1")"
         echo "user '$user' created Table '$2' in Database '$(basename "$1")' at $(date)" >>"$logs_path/tables/$(basename "$1")/$2"
@@ -72,7 +72,7 @@ create() {
 delete() {
     echo
     del='y'
-    [[ -z $2 ]] && {
+    [[ -z "$2" ]] && {
         echo -e "\nName cannot be whitespace."
         return 1
     }
@@ -85,9 +85,12 @@ delete() {
         return 1
     }
 
-    db_owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
-    if [[ "$user" != 'root' && "$user" != "$db_owner" ]]; then
-        echo "only database owner or root can delete $3."
+    local owner_db=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
+    local owner_table=$(awk -F "$delimiter" '/^owner/ {print $3}' "$1/.$2")
+    [[ -z "$owner_table" ]] && owner_table="$owner_db"
+
+    if [[ "$user" != 'root' && "$user" != "$owner_db" && "$user" != "$owner_table" ]]; then
+        echo "you don't have permission."
         return 1
     fi
 
@@ -179,10 +182,11 @@ rename() {
 # $2: selected Database or Table
 select_() {
     permissions_value=$(awk -F "$delimiter" '/^permissions/ {print $2}' "$1/.$2")
-    owner=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
+    owner_db=$(awk -F "$delimiter" '/^owner/ {print $2}' "$1/.$2")
+    owner_table=$(awk -F "$delimiter" '/^owner/ {print $3}' "$1/.$2")
 
     [[ "$user" == 'Guest' ]] && [[ "$permissions_value" != 'public' ]] && {
-        echo "you don't have permission"
+        echo "you don't have permission."
         sleep 2
         return 1
     }

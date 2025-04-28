@@ -44,7 +44,14 @@ key_init() {
         echo
 
         clear_buffer
+        echo "Enter '/' to cancel initialization."
         read -r -p "Please enter column $(($i + 1)) Name: " colName && colName=$(trim_tolower "$colName")
+        [[ "$colName" == '/' ]] && return 1
+        [[ -z "$colName" ]] && {
+            echo "Column name cannot be whitespace"
+            ((i--))
+            continue
+        }
         [[ -z "$colName" ]] && {
             echo "Column name cannot be whitespace"
             ((i--))
@@ -78,6 +85,7 @@ key_init() {
 
         echo "$line" >>"$1"
     done
+    return 0
 }
 
 # $1: Metadata File
@@ -171,9 +179,8 @@ set_permissions() {
 # $1: Database Path
 # $2: Table to be created
 table_init() {
-    local table_owner=$(awk -F "$delimiter" '/^owner/ {print $3}' "$1/.$2")
-    [[ "$user" == 'root' || "$user" == "$owner" || "$user" == "$table_owner" ]] || {
-        echo "you don't have permission"
+    [[ "$user" == 'root' || "$user" == "$owner_db" || "$user" == "$owner_table" ]] || {
+        echo "you don't have permission."
         sleep 2
         return 1
     }
@@ -190,6 +197,12 @@ table_init() {
     done
 
     key_init "$temp_path/$(basename "$1")/$2.init.$user"
+    [[ $? -ne 0 ]] && {
+        echo -e "\nInitialization canceled"
+        rm -f "$temp_path/$(basename "$1")/$2.init.$user"
+        sleep 2
+        return 1
+    }
     clear
     awk -F "$delimiter" '{print $2}' "$temp_path/$(basename "$1")/$2.init.$user" | nl -w 1 -s ") "
     while true; do
@@ -260,7 +273,7 @@ table_init() {
 
 # $1: Database to be created
 db_init() {
-    [[ "$user" != 'root' && "$user" != "$owner" ]] && echo "you don't have permission" && sleep 2 && return 1
+    [[ "$user" != 'root' && "$user" != "$owner_db" ]] && echo "you don't have permission." && sleep 2 && return 1
 
     set_permissions "$temp_path/$1.permissions.$user"
     clear
