@@ -137,7 +137,7 @@ db_menu_write() {
             ;;
         5)
             content=$(ls "$dbs_path")
-            [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
+            [[ -z "$content" ]] && echo -e "No Databases exist\n" && sleep 2 || {
                 echo "Databases:"
                 echo "------------------------------------------------------"
                 echo "$content"
@@ -196,7 +196,7 @@ db_menu_read() {
             ;;
         2)
             content=$(ls "$dbs_path")
-            [[ -z "$content" ]] && echo -e "No Databases exist\n" || {
+            [[ -z "$content" ]] && echo -e "No Databases exist\n" && sleep 2 || {
                 echo "Databases:"
                 echo "------------------------------------------------------"
                 echo "$content"
@@ -283,7 +283,7 @@ table_menu_write() {
             ;;
         5)
             content=$(ls "$db_path")
-            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
+            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" && sleep 2 || {
                 echo "Tables in '$1':"
                 echo "------------------------------------------------------"
                 echo "$content"
@@ -336,7 +336,7 @@ table_menu_read() {
             ;;
         2)
             content=$(ls "$db_path")
-            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" || {
+            [[ -z "$content" ]] && echo -e "No Tables in '$1' exist\n" && sleep 2 || {
                 echo "Tables in '$1':"
                 echo "------------------------------------------------------"
                 echo "$content"

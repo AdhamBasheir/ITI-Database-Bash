@@ -375,8 +375,8 @@ delete_record() {
     return 0
 }
 
-# $1: Table Data File
-# $2: Meta Data File
+# $1: Meta Data File
+# $2: Table Data File
 # $3: flags: 'find', 'delete', 'replace'
 find_record() {
     local meta_file="$1"
