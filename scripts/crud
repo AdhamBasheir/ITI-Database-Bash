@@ -93,25 +93,24 @@ validate_input() {
         [[ "$value" == "n/a" ]] && value=""
         [[ "$value" == "/" ]] && return 1
 
-        if ! no_delimiter "$value"; then
-            echo "Error: '$field' must not contain the control character '0x1f'."
-            continue
-        fi
-
         # Check PK constraint (must be unique and not null)
-        [[ "$constraints" == *"pk"* ]] && {
-            [[ -z "$value" ]] && echo "Error: '$field' (Primary Key) cannot be empty!" && continue
-            if [[ "$constraints" == *"unique"* ]]; then
-                value_escaped=$(escape_for_awk "$value")
-                if awk -F "$delimiter" -v col="$col_index" -v val="$value_escaped" 'NR > 1 && $col == val {exit 1}' "$table_file"; then
-                    echo "Error: '$field' (Primary Key) must be unique!"
-                    continue
-                fi
+        [[ "$constraints" == "pk" ]] && {
+            [[ -z "$value" ]] && echo "Error: The key '$field' (Primary Key) cannot be empty." && continue
+            value_escaped=$(escape_for_awk "$value")
+            if ! awk -F "$delimiter" -v col="$col_index" -v val="$value_escaped" '
+                NR > 1 {
+                    if ($col == val) {
+                        exit 1;
+                    }
+                }' "$table_file"; then
+                echo "Error: The key '$field' already has a value '$value'. Please enter a different value."
+                continue
+
             fi
         }
 
         # Check NOT NULL constraint
-        [[ "$constraints" == *"notnull"* && -z "$value" ]] && echo "Error: '$field' cannot be empty." && continue
+        [[ "$constraints" == *"notnull"* && -z "$value" ]] && echo "Error: The key '$field' cannot be empty." && continue
 
         # Check UNIQUE constraint (if not a PK)
         if [[ "$constraints" == *"unique"* ]]; then
@@ -122,7 +121,7 @@ validate_input() {
                         exit 1;
                     }
                 }' "$table_file"; then
-                echo "Error: This '$field' already exists. Please enter a different value."
+                echo "Error: The key '$field' already has a value '$value'. Please enter a different value."
                 continue
 
             fi
@@ -197,7 +196,7 @@ new_record() {
     for attr in "${attributes[@]}"; do
         type="${field[$attr]}"
         constraints="${rules[$attr]}"
-        [[ "$constraints" =~ notnull ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
+        [[ "$constraints" == *"notnull"* || "$constraints" == "pk" ]] && msg="Enter '$attr' value [$type] (cannot be empty): " || msg="Enter '$attr' value [$type] (press enter for empty value): "
         validate_input "$attr" "$type" "$constraints" "$msg"
         [[ $? -ne 0 ]] && return 1
         new_row+="$reply${delimiter}"
@@ -218,10 +217,10 @@ insert_record() {
     local table_file="$2"
 
     clear
-    echo "Welcome to the record insertion wizard!"
+    echo "Welcome to the Insert Record Wizard!"
     echo "*****************************************"
 
-    echo "Enter '/' to cancel insertion:"
+    echo "Enter '/' to cancel insert:"
     new_record "$meta_file" "$table_file" "insert"
     [[ $? -ne 0 ]] && echo -e "\nInsertion cancled" && return 1
     echo "$new_row" >>"$table_file"
@@ -240,7 +239,7 @@ update_record() {
     local table_file="$2"
 
     clear
-    echo "Welcome to the record/s update wizard!"
+    echo "Welcome to Update Record Wizard!"
     echo "*****************************************"
 
     is_empty_table "$table_file" && {
@@ -289,18 +288,28 @@ replace_record() {
     local table_file="$2"
 
     clear
-    echo "Welcome to the record/s replace wizard!"
+    echo "Welcome to the Replace Records Wizard!"
     echo "*****************************************"
 
     find_record "$meta_file" "$table_file" 'replace'
     [[ $? -ne 0 ]] && return 1
 
-    local field_constraints=$(awk -F "$delimiter" -v key="$col_name" '$1 == "key" && $2 == key {print $4}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
+    local field_constraints=$(awk -F "$delimiter" -v key="$col_name" '$1 == "key" && $2 == key {print $4 $5}' "$meta_file") && field_constraints=$(echo "$field_constraints" | tr -d '\n')
 
-    [[ $constraints =~ notnull ]] && msg="Enter '$col_name' value [$field_type] (cannot be empty): " || msg="Enter '$col_name' value [$field_type] (press enter for empty value): "
+    [[ $field_constraints == *"notnull"* || $field_constraints == "pk" ]] && msg="Enter '$col_name' value [$field_type] (cannot be empty): " || msg="Enter '$col_name' value [$field_type] (press enter for empty value): "
 
+    # Avoid replacing empty values in a unique column if there are multiple matches
+    if [[ $field_constraints == *"unique"* && $matching_count -gt 1 ]]; then
+        echo -e "\nError: Cannot replace value in Unique column with more than one match."
+        return 1
+    fi
+
+    echo "Enter '/' to cancel replace:"
     validate_input "$col_name" "$field_type" "$field_constraints" "$msg"
-    [[ $? -eq 0 ]] && new_value="$reply"
+    [[ $? -eq 0 ]] && new_value="$reply" || {
+        echo -e "\nUpdating canceled."
+        return 1
+    }
 
     clear_buffer
     read -r -p "Are you sure you want to replace values in $matching_count record(s)? Press [y/Y] to confirm replace and anything else to cancel:  " confirmation
@@ -334,7 +343,7 @@ delete_record() {
     local table_file="$2"
 
     clear
-    echo "Welcome to the record deletion wizard!"
+    echo "Welcome to the Delete Records Wizard!"
     echo "*****************************************"
 
     find_record "$meta_file" "$table_file" 'delete'
@@ -372,10 +381,10 @@ find_record() {
 
     [[ "$3" == 'find' ]] && {
         clear
-        echo "Welcome to the Find wizard!"
+        echo "Welcome to the Select Records Wizard!"
         echo "*****************************************"
     }
-    
+
     is_empty_table "$table_file" && {
         echo -e "\nNo records found."
         return 1
