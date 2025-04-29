@@ -246,8 +246,7 @@ users_logs() {
         return 0
     elif [[ ! -e "$logs_path/users/$user_log" ]]; then
         echo -e "\nUser '$user_log' does not exist."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
+        wait_for_input
         return 1
     else
         {
@@ -263,8 +262,7 @@ users_logs() {
 groups_logs() {
     [[ -z $(ls "$logs_path/groups/") ]] && {
         echo "No logs for groups found."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
+        wait_for_input
         return 1
     }
     read -r -p "Please enter the group name (or leave it empty for all groups): " group_log && group_log=$(stringify "$group_log")
@@ -287,14 +285,12 @@ groups_logs() {
         return 0
     elif [[ ! -e "$logs_path/groups/$group_log" ]]; then
         echo -e "\nGroup '$group_log' does not exist."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
+        wait_for_input
         return 1
     else
         if [[ $user != 'root' ]] && [[ ! " ${user_groups[*]} " == *" $logs "* ]]; then
             echo -e "\nYou are not a member of the group '$group_log'."
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+            wait_for_input
             return 1
         fi
         {
@@ -311,8 +307,7 @@ groups_logs() {
 dbs_logs() {
     [[ -z $(ls "$logs_path/dbs/") ]] && {
         echo "No logs for databases found."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
+        wait_for_input
         return 1
     }
     read -r -p "Please enter the database name (or leave it empty for all databases): " db_log && db_log=$(stringify "$db_log")
@@ -337,16 +332,14 @@ dbs_logs() {
     else
         [[ ! -e "$logs_path/dbs/$db_log" ]] && {
             echo -e "\nDatabase '$db_log' does not exist."
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+            wait_for_input
             return 1
         }
         [[ $user != 'root' ]] && {
             log_perm "$dbs_path" "$db_log"
             [[ $? -ne 0 ]] && {
                 echo -e "\nYou don't have permission to access the logs for Database '$db_log'."
-                clear_buffer
-                read -r -s -n 1 -p "Press any key to continue..."
+                wait_for_input
                 return 1
             }
         }
@@ -365,8 +358,7 @@ dbs_logs() {
 tables_logs() {
     [[ "$(du -s "$logs_path/tables/" | cut -f1)" -eq 0 ]] && {
         echo "No logs for tables found."
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
+        wait_for_input
         return 1
     }
     read -r -p "Please enter the database name (or leave it empty for all databases): " db_log && db_log=$(stringify "$db_log")
@@ -396,29 +388,25 @@ tables_logs() {
     else
         [[ ! -e "$logs_path/tables/$db_log" ]] && {
             echo -e "\nDatabase '$db_log' does not exist."
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+            wait_for_input
             return 1
         }
         [[ -z $(ls "$logs_path/tables/$db_log") ]] && {
             echo -e "\nNo logs found in Database '$db_log'."
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+            wait_for_input
             return 1
         }
         if [[ -n "$table_log" ]]; then
             [[ ! -e "$logs_path/tables/$db_log/$table_log" ]] && {
                 echo -e "\nTable '$table_log' does not exist in Database '$db_log'."
-                clear_buffer
-                read -r -s -n 1 -p "Press any key to continue..."
+                wait_for_input
                 return 1
             }
             if [[ $user != 'root' ]]; then
                 log_perm "$dbs_path/$db_log" "$table_log"
                 [[ $? -ne 0 ]] && {
                     echo -e "\nYou don't have permission to access the logs for Table '$table_log' in Database '$db_log'."
-                    clear_buffer
-                    read -r -s -n 1 -p "Press any key to continue..."
+                    wait_for_input
                     return 1
                 }
             fi
@@ -519,8 +507,7 @@ mygroups() {
     clear
     echo -e "A menu where you can edit and remove your groups\n"
     awk -F "$delimiter" '/^groups/ {for (i=2; i<=NF; i++) print $i}' "$auth_path/users/$user"
-    clear_buffer
-    read -r -s -n 1 -p "Press any key to continue..."
+    wait_for_input
     return 0
 }
 
@@ -624,9 +611,7 @@ root_menu() {
             for group in "$auth_path"/.*; do
                 [ -f "$group" ] && echo "$group"
             done
-            echo
-            clear_buffer
-            read -r -s -n 1 -p "Press any key to continue..."
+            wait_for_input
             ;;
         3)
             log_menu

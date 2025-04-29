@@ -6,6 +6,13 @@ clear_buffer() {
     read -r -s -t 0.1 -N 999999
 }
 
+# Wating for user input
+wait_for_input() {
+    echo
+    clear_buffer
+    read -r -s -n 1 -p "Press any key to continue..."
+}
+
 # Remove leading/trailing spaces, squeeze inner spaces, and convert the string to lowercase
 trim_tolower() {
     echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/[[:space:]]\+/ /g;s/.*/\L&/'
@@ -25,16 +32,6 @@ escape_for_awk() {
 # Escape special characters for sed
 escape_for_sed() {
     echo "$1" | sed 's/[&/\.^$*+?()[\]{}|\\]/\\&/g' | sed 's/\\/\\\\/g' | sed 's/\$/\\$/g' | sed 's/\^/\\^/g' | sed 's/\./\\./g'
-}
-
-# Pause on success, Wait on failure
-pause_wait() {
-    if [[ $1 -eq 0 ]]; then
-        clear_buffer
-        read -r -s -n 1 -p "Press any key to continue..."
-    else
-        sleep 2
-    fi
 }
 
 # Hash the password with a salt using SHA-256

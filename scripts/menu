@@ -373,6 +373,7 @@ crud_menu_write() {
 
         clear_buffer
         read -r -s -n 1 choice
+        clear
 
         case "$choice" in
         1)
@@ -382,17 +383,21 @@ crud_menu_write() {
         2)
             update_record "$1" "$2"
             sleep 2
+
             ;;
         3)
             replace_record "$1" "$2"
             sleep 2
+
             ;;
         4)
             delete_record "$1" "$2"
             sleep 2
+
             ;;
         5)
             find_record "$1" "$2" 'find'
+            [[ $? -eq 0 ]] && wait_for_input || sleep 2
             ;;
         6)
             show_all_records "$2"
@@ -425,10 +430,12 @@ crud_menu_read() {
 
         clear_buffer
         read -r -s -n 1 choice
+        clear
 
         case "$choice" in
         1)
             find_record "$1" "$2" 'find'
+            [[ $? -eq 0 ]] && wait_for_input || sleep 2
             ;;
         2)
             show_all_records "$2"
