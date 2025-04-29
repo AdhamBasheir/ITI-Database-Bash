@@ -71,7 +71,7 @@ logs_path="$data_path/.Logs"
     mkdir -p "$logs_path/groups"
     mkdir -p "$logs_path/dbs"
     mkdir -p "$logs_path/tables"
-    echo "root created at $(date)" >>"$logs_path/users/root"
+    echo "user 'root' created at $(date)" >>"$logs_path/users/root"
 }
 
 # Initialize temp metadata Directory

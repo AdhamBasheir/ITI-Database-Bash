@@ -179,6 +179,7 @@ backup_func() {
         fi
     done
 
+    echo "user 'root' created snapshot '$backup_name.tar.gz' at $(date)" >>"$logs_path/users/root"
     return 0
 }
 
@@ -214,6 +215,7 @@ restore_func() {
 
     rm -rf "$data_path"
     tar -xzf "$selected_backup" -C "$(dirname "$data_path")"
+    echo "user 'root' restored snapshot '$(basename $selected_backup)' at $(date)" >>"$logs_path/users/root"
     echo "✅ Restore complete!"
     return 0
 }
