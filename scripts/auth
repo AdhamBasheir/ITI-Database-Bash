@@ -187,13 +187,13 @@ restore_func() {
     local backups=("$backup_path"/*.tar.gz)
 
     if ((${#backups[@]} == 0)); then
-        echo "⚠️ No backups found in $backup_path"
+        echo "⚠️ No backups found."
         return 1
     fi
 
     echo "🔍 Available backups:"
     echo "-------------------------------------------------------------------------------------------------------------------------"
-    echo "${backups[@]}" | tr ' ' '\n' | sed 's|.*/.backup/||' | sed 's|\.tar\.gz$||' | sort -r | nl -w1 -s') '
+    echo "${backups[@]}" | tr ' ' '\n' | sed 's|.*/.backup/||' | sort -r | nl -w1 -s') '
     clear_buffer
     echo "-------------------------------------------------------------------------------------------------------------------------"
     read -r -p "Enter the number of the backup to restore: " choice
