@@ -31,7 +31,7 @@ escape_for_awk() {
 
 # Escape special characters for sed
 escape_for_sed() {
-    echo "$1" | sed 's/[&/\.^$*+?()[\]{}|\\]/\\&/g' | sed 's/\\/\\\\/g' | sed 's/\$/\\$/g' | sed 's/\^/\\^/g' | sed 's/\./\\./g' |  | sed 's|\/|\\/|g'
+    echo "$1" | sed 's/[&/\.^$*+?()[\]{}|\\]/\\&/g' | sed 's/\\/\\\\/g' | sed 's/\$/\\$/g' | sed 's/\^/\\^/g' | sed 's/\./\\./g' | sed 's|\/|\\/|g'
 }
 
 # Hash the password with a salt using SHA-256
