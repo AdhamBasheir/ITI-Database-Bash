@@ -274,9 +274,7 @@ update_record() {
         return 1
     }
 
-    echo "$new_row" && sleep 6
     new_row=$(escape_for_sed "$new_row")
-    echo "$new_row" && sleep 6
     sed -i "${updated_line}s/.*/$new_row/" "$table_file"
 
     echo "user '$user' updated a row in Table '$(basename "$2")' in Database '$(basename "$db_path")' at $(date)" >>"$logs_path/users/$user"
